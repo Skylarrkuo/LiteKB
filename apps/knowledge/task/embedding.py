@@ -12,14 +12,20 @@ from common.event.listener_manage import (
     UpdateProblemArgs,
 )
 from common.utils.logger import maxkb_logger
+from django.db import transaction
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from models_provider.models import Model
 from models_provider.tools import get_model, get_model_default_params
 from ops import celery_app
 
-from knowledge.models import Document, State, TaskType
+from knowledge.models import Document, Knowledge, Paragraph, ProblemParagraphMapping, State, TaskType
 from knowledge.serializers.common import drop_knowledge_index
+from knowledge.vector.model_guard import run_for_model
+
+
+def paragraph_documents(ids):
+    return Paragraph.objects.filter(pk__in=ids).values_list("document_id", flat=True).distinct()
 
 
 def get_embedding_model(
@@ -42,20 +48,21 @@ def get_embedding_model(
 
 @celery_app.task(base=QueueOnce, once={"keys": ["paragraph_id"]}, name="celery:embedding_by_paragraph")
 def embedding_by_paragraph(paragraph_id, model_id):
-    embedding_model = get_embedding_model(model_id)
-    ListenerManagement.embedding_by_paragraph(paragraph_id, embedding_model)
+    run_for_model(model_id, paragraph_documents([paragraph_id]),
+                  lambda: ListenerManagement.embedding_by_paragraph(paragraph_id, get_embedding_model(model_id)))
 
 
 @celery_app.task(base=QueueOnce, once={"keys": ["paragraph_id_list"]}, name="celery:embedding_by_paragraph_data_list")
 def embedding_by_paragraph_data_list(data_list, paragraph_id_list, model_id):
-    embedding_model = get_embedding_model(model_id)
-    ListenerManagement.embedding_by_paragraph_data_list(data_list, paragraph_id_list, embedding_model)
+    run_for_model(model_id, paragraph_documents(paragraph_id_list), lambda:
+                  ListenerManagement.embedding_by_paragraph_data_list(data_list, paragraph_id_list,
+                                                                      get_embedding_model(model_id)))
 
 
 @celery_app.task(base=QueueOnce, once={"keys": ["paragraph_id_list"]}, name="celery:embedding_by_paragraph_list")
 def embedding_by_paragraph_list(paragraph_id_list, model_id):
-    embedding_model = get_embedding_model(model_id)
-    ListenerManagement.embedding_by_paragraph_list(paragraph_id_list, embedding_model)
+    run_for_model(model_id, paragraph_documents(paragraph_id_list),
+                  lambda: ListenerManagement.embedding_by_paragraph_list(paragraph_id_list, get_embedding_model(model_id)))
 
 
 @celery_app.task(base=QueueOnce, once={"keys": ["document_id"]}, name="celery:embedding_by_document")
@@ -68,7 +75,10 @@ def embedding_by_document(document_id, model_id, state_list=None):
     :return: None
     """
 
-    if state_list is None:
+    current_id = Document.objects.filter(pk=document_id).values_list("knowledge__embedding_model_id", flat=True).first()
+    if current_id is None:
+        return
+    if state_list is None or str(current_id) != str(model_id):
         state_list = [
             State.PENDING.value,
             State.STARTED.value,
@@ -87,9 +97,10 @@ def embedding_by_document(document_id, model_id, state_list=None):
             )
         )
 
-    embedding_model = get_embedding_model(model_id, exception_handler)
-    #
-    ListenerManagement.embedding_by_document(document_id, embedding_model, state_list)
+    # A queued task from before a model switch can rebuild the document with its current model.
+    model_id = str(current_id)
+    run_for_model(model_id, [document_id], lambda: ListenerManagement.embedding_by_document(
+        document_id, get_embedding_model(model_id, exception_handler), state_list))
 
 
 @celery_app.task(name="celery:embedding_by_document_list")
@@ -114,19 +125,22 @@ def embedding_by_knowledge(knowledge_id, model_id):
     """
     maxkb_logger.info(_("Start--->Vectorized knowledge: {knowledge_id}").format(knowledge_id=knowledge_id))
     try:
-        ListenerManagement.delete_embedding_by_knowledge(knowledge_id)
-        drop_knowledge_index(knowledge_id=knowledge_id)
+        with transaction.atomic():
+            knowledge = Knowledge.objects.select_for_update().filter(pk=knowledge_id).first()
+            if knowledge is None or str(knowledge.embedding_model_id) != str(model_id):
+                return
+            ListenerManagement.delete_embedding_by_knowledge(knowledge_id)
+            drop_knowledge_index(knowledge_id=knowledge_id)
         document_list = QuerySet(Document).filter(knowledge_id=knowledge_id)
         maxkb_logger.info(
             _("Knowledge documentation: {document_names}").format(
                 document_names=", ".join([d.name for d in document_list])
             )
         )
+        from litekb_api.index_tasks import dispatch_document_index
+
         for document in document_list:
-            try:
-                embedding_by_document.delay(document.id, model_id)
-            except Exception as e:
-                pass
+            dispatch_document_index(str(document.pk), str(model_id))
     except Exception as e:
         maxkb_logger.error(
             _("Vectorized knowledge: {knowledge_id} error {error} {traceback}").format(
@@ -144,13 +158,13 @@ def embedding_by_problem(args, model_id):
     @param model_id: 模型id
     @return:
     """
-    embedding_model = get_embedding_model(model_id)
-    ListenerManagement.embedding_by_problem(args, embedding_model)
+    run_for_model(model_id, [args["document_id"]],
+                  lambda: ListenerManagement.embedding_by_problem(args, get_embedding_model(model_id)))
 
 
 def embedding_by_data_list(args: List, model_id):
-    embedding_model = get_embedding_model(model_id)
-    ListenerManagement.embedding_by_data_list(args, embedding_model)
+    run_for_model(model_id, {row["document_id"] for row in args},
+                  lambda: ListenerManagement.embedding_by_data_list(args, get_embedding_model(model_id)))
 
 
 @celery_app.task(base=QueueOnce, once={"keys": ["document_id"]}, name="celery:tokenize_by_document")
@@ -239,8 +253,9 @@ def update_problem_embedding(problem_id: str, problem_content: str, model_id):
     @param model_id:
     @return:
     """
-    model = get_embedding_model(model_id)
-    ListenerManagement.update_problem(UpdateProblemArgs(problem_id, problem_content, model))
+    docs = ProblemParagraphMapping.objects.filter(problem_id=problem_id).values_list("document_id", flat=True)
+    run_for_model(model_id, docs, lambda: ListenerManagement.update_problem(
+        UpdateProblemArgs(problem_id, problem_content, get_embedding_model(model_id))))
 
 
 def update_embedding_knowledge_id(paragraph_id_list, target_knowledge_id):
@@ -268,14 +283,15 @@ def delete_embedding_by_paragraph_ids(paragraph_ids: List[str]):
 def update_embedding_document_id(
     paragraph_id_list, target_document_id, target_knowledge_id, target_embedding_model_id=None
 ):
-    target_embedding_model = (
-        get_embedding_model(target_embedding_model_id) if target_embedding_model_id is not None else None
-    )
-    ListenerManagement.update_embedding_document_id(
-        UpdateEmbeddingDocumentIdArgs(
-            paragraph_id_list, target_document_id, target_knowledge_id, target_embedding_model
-        )
-    )
+    def update(model):
+        ListenerManagement.update_embedding_document_id(
+            UpdateEmbeddingDocumentIdArgs(paragraph_id_list, target_document_id, target_knowledge_id, model))
+
+    if target_embedding_model_id is None:
+        update(None)
+    else:
+        run_for_model(target_embedding_model_id, [target_document_id],
+                      lambda: update(get_embedding_model(target_embedding_model_id)))
 
 
 def delete_embedding_by_knowledge_id_list(knowledge_id_list):

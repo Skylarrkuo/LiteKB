@@ -12,6 +12,7 @@ import zipfile
 from typing import List
 
 import uuid_utils.compat as uuid
+from django.db import transaction
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -29,11 +30,11 @@ from common.exception.app_exception import AppApiException
 from common.utils.common import get_file_content
 from common.utils.fork import Fork
 from common.utils.logger import maxkb_logger
-from knowledge.models import Document, KnowledgeWorkflow, KnowledgeWorkflowVersion, KnowledgeType
+from knowledge.models import Document, KnowledgeWorkflow, KnowledgeType
 from knowledge.models import Paragraph, Problem, ProblemParagraphMapping, Knowledge, File
 from maxkb.conf import PROJECT_DIR
 from models_provider.tools import get_model, get_model_default_params
-from system_manage.models.resource_mapping import ResourceMapping, ResourceType
+from system_manage.models.resource_mapping import ResourceType
 
 
 class MetaSerializer(serializers.Serializer):
@@ -249,6 +250,7 @@ def get_knowledge_operation_object(knowledge_id: str):
     return {}
 
 
+@transaction.atomic
 def create_knowledge_index(knowledge_id=None, document_id=None):
     if knowledge_id is None and document_id is None:
         raise AppApiException(500, _('Knowledge ID or Document ID must be provided'))
@@ -256,8 +258,11 @@ def create_knowledge_index(knowledge_id=None, document_id=None):
     if knowledge_id is not None:
         k_id = knowledge_id
     else:
-        document = QuerySet(Document).filter(id=document_id).first()
-        k_id = document.knowledge_id
+        k_id = Document.objects.filter(pk=document_id).values_list("knowledge_id", flat=True).first()
+
+    # Index dimensions and the model/rows selected for this knowledge base must agree.
+    if not Knowledge.objects.select_for_update().filter(pk=k_id).exists():
+        return
 
     sql = f"SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'embedding' AND indexname = 'embedding_hnsw_idx_{k_id}'"
     index = sql_execute(sql, [])
@@ -269,7 +274,10 @@ def create_knowledge_index(knowledge_id=None, document_id=None):
         dims = result[0]['dims']
         # 超过2000维度不创建索引，pgvector hnsw索引不支持超过2000维度
         if dims < 2000:
-            sql = f"""CREATE INDEX "embedding_hnsw_idx_{k_id}" ON embedding USING hnsw ((embedding::vector({dims})) vector_cosine_ops) WHERE knowledge_id = '{k_id}'"""
+            # Recently deleted tuples of the previous dimension can still be examined by CREATE INDEX.
+            sql = (f'CREATE INDEX "embedding_hnsw_idx_{k_id}" ON embedding USING hnsw '
+                   f"((embedding::vector({dims})) vector_cosine_ops) WHERE knowledge_id = '{k_id}' "
+                   f"AND vector_dims(embedding) = {dims}")
             update_execute(sql, [])
             maxkb_logger.info(f'Created index for knowledge ID: {k_id}')
 

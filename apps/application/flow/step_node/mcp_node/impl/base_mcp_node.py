@@ -47,6 +47,8 @@ class BaseMcpNode(IMcpNode):
 
         backend = SandboxMCPBackend(servers)
         res = asyncio.run(backend.call_tool(mcp_server, mcp_tool, params))
+        if getattr(res, "isError", False):
+            raise ValueError("MCP tool reported an unsuccessful result")
         return NodeResult(
             {'result': [content.text for content in res.content], 'tool_params': params, 'mcp_tool': mcp_tool}, {})
 

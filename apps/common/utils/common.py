@@ -27,7 +27,6 @@ from django.db.models import QuerySet
 from django.utils.translation import gettext as _
 from maxkb.settings import TIME_ZONE
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
-from pydub import AudioSegment
 
 from ..database_model_manage.database_model_manage import DatabaseModelManage
 from ..exception.app_exception import AppApiException
@@ -247,6 +246,8 @@ def any_to_amr(any_path, amr_path):
         return
     if any_path.endswith(".sil") or any_path.endswith(".silk") or any_path.endswith(".slk"):
         raise NotImplementedError("Not support file type: {}".format(any_path))
+    from pydub import AudioSegment
+
     audio = AudioSegment.from_file(any_path)
     audio = audio.set_frame_rate(8000)  # only support 8000
     audio.export(amr_path, format="amr")
@@ -260,12 +261,15 @@ def any_to_mp3(any_path, mp3_path):
     if any_path.endswith(".mp3"):
         shutil.copy2(any_path, mp3_path)
         return
-    if any_path.endswith(".sil") or any_path.endswith(".silk") or any_path.endswith(".slk"):
-        sil_to_wav(any_path, any_path)
-        any_path = mp3_path
-    audio = AudioSegment.from_file(any_path)
+    from pydub import AudioSegment
+
+    if any_path.lower().endswith((".sil", ".silk", ".slk")):
+        import pysilk
+        audio = AudioSegment.from_wav(io.BytesIO(pysilk.decode_file(any_path, to_wav=True)))
+    else:
+        audio = AudioSegment.from_file(any_path)
     audio = audio.set_frame_rate(16000)
-    audio.export(mp3_path, format="mp3")
+    audio.export(mp3_path, format="mp3").close()
 
 
 def sil_to_wav(silk_path, wav_path, rate: int = 24000):
@@ -275,13 +279,15 @@ def sil_to_wav(silk_path, wav_path, rate: int = 24000):
     try:
         import pysilk
     except ImportError:
-        raise AppApiException("import pysilk failed, wechaty voice message will not be supported.")
+        raise AppApiException(400, "SILK audio requires the LiteKB media dependencies.")
     wav_data = pysilk.decode_file(silk_path, to_wav=True, sample_rate=rate)
     with open(wav_path, "wb") as f:
         f.write(wav_data)
 
 
 def split_and_transcribe(file_path, model, max_segment_length_ms=59000, audio_format="mp3"):
+    from pydub import AudioSegment
+
     audio_data = AudioSegment.from_file(file_path, format=audio_format)
     audio_length_ms = len(audio_data)
 

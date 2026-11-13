@@ -4,7 +4,6 @@ import os
 import pickle
 import re
 import tempfile
-import traceback
 import zipfile
 from collections import defaultdict
 from functools import reduce
@@ -24,9 +23,7 @@ from common.event.listener_manage import ListenerManagement
 from common.exception.app_exception import AppApiException
 from common.field.common import UploadedFileField
 from common.utils.common import bulk_create_in_batches, get_file_content, parse_image, post
-from common.utils.fork import ChildLink, Fork
 from common.utils.logger import maxkb_logger
-from common.utils.split_model import get_split_model
 from django.core import validators
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import models, transaction
@@ -82,7 +79,6 @@ from knowledge.serializers.common import (
 from knowledge.serializers.document import DocumentSerializers
 from knowledge.task.embedding import delete_embedding_by_knowledge, embedding_by_knowledge
 from knowledge.task.generate import generate_related_by_knowledge_id
-from knowledge.task.sync import sync_replace_web_knowledge, sync_web_knowledge
 
 
 class KnowledgeModelSerializer(serializers.ModelSerializer):
@@ -156,17 +152,7 @@ class HitTestSerializer(serializers.Serializer):
     query_text = serializers.CharField(required=True, label=_("query text"))
     top_number = serializers.IntegerField(required=True, max_value=10000, min_value=1, label=_("top number"))
     similarity = serializers.FloatField(required=True, max_value=2, min_value=0, label=_("similarity"))
-    search_mode = serializers.CharField(
-        required=True,
-        label=_("search mode"),
-        validators=[
-            validators.RegexValidator(
-                regex=re.compile("^embedding|keywords|blend$"),
-                message=_("The type only supports embedding|keywords|blend"),
-                code=500,
-            )
-        ],
-    )
+    search_mode = serializers.ChoiceField(choices=SearchMode.choices, label=_("search mode"))
 
 
 class KnowledgeSerializer(serializers.Serializer):
@@ -1209,44 +1195,7 @@ class KnowledgeSerializer(serializers.Serializer):
             }, knowledge_id
 
         def save_web(self, instance: Dict, with_valid=True):
-            if with_valid:
-                self.is_valid(raise_exception=True)
-                KnowledgeWebCreateRequest(data=instance).is_valid(raise_exception=True)
-
-            folder_id = instance.get("folder_id", self.data.get("workspace_id"))
-
-            knowledge_id = uuid.uuid7()
-            knowledge = Knowledge(
-                id=knowledge_id,
-                name=instance.get("name"),
-                desc=instance.get("desc"),
-                user_id=self.data.get("user_id"),
-                type=instance.get("type", KnowledgeType.WEB),
-                scope=self.data.get("scope", KnowledgeScope.WORKSPACE),
-                folder_id=folder_id,
-                workspace_id=self.data.get("workspace_id"),
-                embedding_model_id=instance.get("embedding_model_id"),
-                meta={
-                    "source_url": instance.get("source_url"),
-                    "selector": instance.get("selector", "body"),
-                    "embedding_model_id": instance.get("embedding_model_id"),
-                },
-            )
-            knowledge.save()
-            # 自动资源给授权当前用户
-            UserResourcePermissionSerializer(
-                data={
-                    "workspace_id": self.data.get("workspace_id"),
-                    "user_id": self.data.get("user_id"),
-                    "auth_target_type": AuthTargetType.KNOWLEDGE.value,
-                }
-            ).auth_resource(str(knowledge_id))
-
-            sync_web_knowledge.delay(
-                str(knowledge_id), self.data.get("user_id"), instance.get("source_url"), instance.get("selector")
-            )
-            update_resource_mapping_by_knowledge(str(knowledge_id))
-            return {**KnowledgeModelSerializer(knowledge).data, "document_list": []}
+            raise AppApiException(400, "Web synchronization is disabled in LiteKB")
 
     class SyncWeb(serializers.Serializer):
         workspace_id = serializers.CharField(required=True, label=_("workspace id"))
@@ -1279,78 +1228,7 @@ class KnowledgeSerializer(serializers.Serializer):
                 raise AppApiException(500, _("Synchronization is only supported for web site types"))
 
         def sync(self, with_valid=True):
-            if with_valid:
-                self.is_valid(raise_exception=True)
-            sync_type = self.data.get("sync_type")
-            knowledge_id = self.data.get("knowledge_id")
-            knowledge = QuerySet(Knowledge).get(id=knowledge_id)
-            self.__getattribute__(sync_type + "_sync")(knowledge)
-            return True
-
-        @staticmethod
-        def get_sync_handler(knowledge):
-            def handler(child_link: ChildLink, response: Fork.Response):
-                if response.status == 200:
-                    try:
-                        document_name = (
-                            child_link.tag.text
-                            if child_link.tag is not None and len(child_link.tag.text.strip()) > 0
-                            else child_link.url
-                        )
-                        paragraphs = get_split_model("web.md").parse(response.content)
-                        maxkb_logger.info(child_link.url.strip())
-                        first = (
-                            QuerySet(Document)
-                            .filter(meta__source_url=child_link.url.strip(), knowledge=knowledge)
-                            .first()
-                        )
-                        if first is not None:
-                            # 如果存在,使用文档同步
-                            DocumentSerializers.Sync(data={"document_id": first.id}).sync()
-                        else:
-                            # 插入
-                            DocumentSerializers.Create(data={"knowledge_id": knowledge.id}).save(
-                                {
-                                    "name": document_name,
-                                    "paragraphs": paragraphs,
-                                    "meta": {
-                                        "source_url": child_link.url.strip(),
-                                        "selector": knowledge.meta.get("selector"),
-                                    },
-                                    "type": KnowledgeType.WEB,
-                                },
-                                with_valid=True,
-                            )
-                    except Exception as e:
-                        maxkb_logger.error(f"{str(e)}:{traceback.format_exc()}")
-
-            return handler
-
-        def replace_sync(self, knowledge):
-            """
-            替换同步
-            :return:
-            """
-            url = knowledge.meta.get("source_url")
-            selector = knowledge.meta.get("selector") if "selector" in knowledge.meta else None
-            user_id = self.data.get("user_id")
-            sync_replace_web_knowledge.delay(str(knowledge.id), user_id, url, selector)
-
-        def complete_sync(self, knowledge):
-            """
-            完整同步  删掉当前数据集下所有的文档,再进行同步
-            :return:
-            """
-            # 删除关联问题
-            QuerySet(ProblemParagraphMapping).filter(knowledge=knowledge).delete()
-            # 删除文档
-            QuerySet(Document).filter(knowledge=knowledge).delete()
-            # 删除段落
-            QuerySet(Paragraph).filter(knowledge=knowledge).delete()
-            # 删除向量
-            delete_embedding_by_knowledge(self.data.get("knowledge_id"))
-            # 同步
-            self.replace_sync(knowledge)
+            raise AppApiException(400, "Web synchronization is disabled in LiteKB")
 
     class HitTest(serializers.Serializer):
         workspace_id = serializers.CharField(required=True, label=_("workspace id"))
@@ -1359,17 +1237,7 @@ class KnowledgeSerializer(serializers.Serializer):
         query_text = serializers.CharField(required=True, label=_("query text"))
         top_number = serializers.IntegerField(required=True, max_value=10000, min_value=1, label=_("top number"))
         similarity = serializers.FloatField(required=True, max_value=2, min_value=0, label=_("similarity"))
-        search_mode = serializers.CharField(
-            required=True,
-            label=_("search mode"),
-            validators=[
-                validators.RegexValidator(
-                    regex=re.compile("^embedding|keywords|blend$"),
-                    message=_("The type only supports embedding|keywords|blend"),
-                    code=500,
-                )
-            ],
-        )
+        search_mode = serializers.ChoiceField(choices=SearchMode.choices, label=_("search mode"))
 
         def is_valid(self, *, raise_exception=True):
             super().is_valid(raise_exception=True)
@@ -1400,15 +1268,15 @@ class KnowledgeSerializer(serializers.Serializer):
                 SearchMode(self.data.get("search_mode")),
                 model,
             )
-            hit_dict = reduce(lambda x, y: {**x, **y}, [{hit.get("paragraph_id"): hit} for hit in hit_list], {})
-            p_list = list_paragraph([h.get("paragraph_id") for h in hit_list])
+            paragraphs = {p["id"]: p for p in list_paragraph([h["paragraph_id"] for h in hit_list])}
             return [
                 {
-                    **p,
-                    "similarity": hit_dict.get(p.get("id")).get("similarity"),
-                    "comprehensive_score": hit_dict.get(p.get("id")).get("comprehensive_score"),
+                    **paragraphs[h["paragraph_id"]],
+                    "similarity": h["similarity"],
+                    "comprehensive_score": h["comprehensive_score"],
+                    **({"rank_score": h["rank_score"]} if "rank_score" in h else {}),
                 }
-                for p in p_list
+                for h in hit_list if h["paragraph_id"] in paragraphs
             ]
 
     class StoreKnowledge(serializers.Serializer):

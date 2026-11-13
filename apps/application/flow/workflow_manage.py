@@ -6,10 +6,12 @@
     @date：2024/1/9 17:40
     @desc:
 """
+import asyncio
 import concurrent
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from functools import reduce
 from typing import List, Dict
 
@@ -26,6 +28,7 @@ from application.flow.step_node import get_node
 from common.handle.base_to_response import BaseToResponse
 from common.handle.impl.response.system_to_response import SystemToResponse
 from common.utils.logger import maxkb_logger
+from litekb_api.run_guard import WRITE_NODES, admit_effect, node_scope, uncertain_effect
 
 executor = ThreadPoolExecutor(max_workers=200)
 
@@ -359,19 +362,22 @@ class WorkflowManage:
                 self._cleanup()
 
     def run_chain_async(self, current_node, node_result_future, language='zh'):
-        future = executor.submit(self.run_chain_manage, current_node, node_result_future, language)
+        future = executor.submit(copy_context().run, self.run_chain_manage, current_node, node_result_future, language)
         self.future_list.append(future)
 
     def run_chain_manage(self, current_node, node_result_future, language='zh'):
         connection.close()
         translation.activate(language)
+        if self.is_the_task_interrupted():
+            return
         if current_node is None:
             start_node = self.get_start_node()
             current_node = get_node(start_node.type, self.flow.workflow_mode)(start_node, self.params, self)
         self.node_chunk_manage.add_node_chunk(current_node.node_chunk)
         # 添加节点
         self.append_node(current_node)
-        result = self.run_chain(current_node, node_result_future)
+        with node_scope(current_node):
+            result = self.run_chain(current_node, node_result_future)
         if result is None:
             return
         node_list = self.get_next_node_list(current_node, result)
@@ -380,7 +386,7 @@ class WorkflowManage:
         elif len(node_list) > 1:
             sorted_node_run_list = sorted(node_list, key=lambda n: n.node.y)
             # 获取到可执行的子节点
-            result_list = [{'node': node, 'future': executor.submit(self.run_chain_manage, node, None, language)} for
+            result_list = [{'node': node, 'future': executor.submit(copy_context().run, self.run_chain_manage, node, None, language)} for
                            node in
                            sorted_node_run_list]
             for r in result_list:
@@ -429,18 +435,20 @@ class WorkflowManage:
         child_node = {}
         view_type = current_node.view_type
         try:
-            self.send_progress(current_node)
             current_result = node_result_future.result()
             result = current_result.write_context(current_node, self)
             if result is not None:
                 if self.is_result(current_node, current_result):
                     for r in result:
+                        if self.is_the_task_interrupted():
+                            return None
                         reasoning_content = ''
                         content = r
                         child_node = {}
                         node_is_end = False
                         view_type = current_node.view_type
                         node_type = current_node.type
+                        requires_input = node_type == 'form-node' and current_node.context.get('is_submit') is False
                         node_name = current_node.node.properties.get('stepName')
                         if isinstance(r, dict):
                             content = r.get('content')
@@ -453,6 +461,7 @@ class WorkflowManage:
                                 node_is_end = r.get('node_is_end')
                             if r.__contains__('node_type'):
                                 node_type = r.get("node_type")
+                                requires_input = r.get("requires_input", False)
                             if r.__contains__('node_name'):
                                 node_name = r.get('node_name')
                             view_type = r.get('view_type')
@@ -463,6 +472,7 @@ class WorkflowManage:
                                                                                current_node.up_node_id_list,
                                                                                content, False, 0, 0,
                                                                                {'node_type': node_type,
+                                                                                'requires_input': requires_input,
                                                                                 'runtime_node_id': runtime_node_id,
                                                                                 'node_name': node_name,
                                                                                 'view_type': view_type,
@@ -480,6 +490,7 @@ class WorkflowManage:
                                                        '', False, 0, 0, {'node_is_end': True,
                                                                          'runtime_node_id': runtime_node_id,
                                                                          'node_type': current_node.type,
+                                                                         'requires_input': current_node.type == 'form-node' and current_node.context.get('is_submit') is False,
                                                                          'view_type': view_type,
                                                                          'child_node': child_node,
                                                                          'real_node_id': real_node_id,
@@ -551,6 +562,7 @@ class WorkflowManage:
                                                                     'runtime_node_id': runtime_node_id,
                                                                     'node_name': current_node.node.properties.get(
                                                                         'stepName'),
+                                                                    'node_phase': 'started',
                                                                     'view_type': view_type,
                                                                     'child_node': child_node,
                                                                     'node_is_end': True,
@@ -560,7 +572,7 @@ class WorkflowManage:
             current_node.node_chunk.add_chunk(chunk)
 
     def run_node_async(self, node):
-        future = executor.submit(self.run_node, node)
+        future = executor.submit(copy_context().run, self.run_node, node)
         return future
 
     def run_node_future(self, node):
@@ -573,10 +585,18 @@ class WorkflowManage:
             return NodeResultFuture(None, e, 500)
 
     def run_node(self, node):
-        result = node.run()
-        return result
+        if node.type not in WRITE_NODES:
+            return node.run()
+        admit_effect("node", node.id)
+        try:
+            return node.run()
+        except (Exception, asyncio.CancelledError):
+            uncertain_effect()
+            raise
 
     def is_result(self, current_node, current_node_result):
+        if current_node.type == 'form-node' and current_node.context.get('is_submit') is False:
+            return True
         return current_node.node_params.get('is_result', not self._has_next_node(
             current_node, current_node_result)) if current_node.node_params is not None else False
 

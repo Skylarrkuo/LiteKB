@@ -400,6 +400,7 @@ class ChatSerializers(serializers.Serializer):
             params['chat_record_id'] = chat_record_id
         chat_info.set_chat(message)
         # 运行流水线作业
+        pipeline_message.is_interrupted = self.context.get('interrupt', lambda: False)
         pipeline_message.run(params)
         return pipeline_message.context['chat_result']
 
@@ -461,7 +462,8 @@ class ChatSerializers(serializers.Serializer):
                                           video_list,
                                           other_list,
                                           instance.get('runtime_node_id'),
-                                          instance.get('node_data'), chat_record, instance.get('child_node'))
+                                          instance.get('node_data'), chat_record, instance.get('child_node'),
+                                          is_the_task_interrupted=self.context.get('interrupt', lambda: False))
         chat_info.set_chat(message)
         r = work_flow_manage.run()
         return r
@@ -485,8 +487,11 @@ class ChatSerializers(serializers.Serializer):
              check_chat_record: bool = True):
         super().is_valid(raise_exception=True)
         ChatMessageSerializers(data=instance).is_valid(raise_exception=True)
-        chat_info = self.get_chat_info()
+        chat_info = self.context.get('run_chat_info') or self.get_chat_info()
         chat_info.get_application()
+        if not chat_info.debug:
+            from litekb_api.run_policy import validate_resources
+            validate_resources(chat_info.application)
         chat_info.get_chat_user(asker=(instance.get('form_data') or {}).get('asker'))
         if check_chat_record and instance.get('chat_record_id'):
             if self.data.get('debug'):

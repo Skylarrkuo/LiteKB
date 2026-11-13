@@ -34,6 +34,8 @@ class ModelManage:
 
     @staticmethod
     def get_model(_id, get_model):
+        from litekb_api.run_policy import require_ids
+        require_ids("model", [_id])
         model_instance = ModelManage.cache.get(_id)
         if model_instance is None:
             lock = ModelManage._get_lock(_id)

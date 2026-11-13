@@ -4,7 +4,7 @@ import urllib
 from types import SimpleNamespace
 
 import uuid_utils.compat as uuid
-from application.models import Application, ApplicationAccessToken, ChatShareLink, ShareLinkType
+from application.models import Application
 from common.auth.common import FileToken
 from common.auth.authentication import get_is_permissions
 from common.auth.handle.impl.user_token import get_auth
@@ -12,7 +12,6 @@ from common.constants.authentication_type import AuthenticationType
 from common.constants.permission_constants import CompareConstants, PermissionConstants, RoleConstants, ViewPermission
 from common.database_model_manage.database_model_manage import DatabaseModelManage
 from common.exception.app_exception import AppApiException, AppUnauthorizedFailed, NotFound404
-from common.utils.public_file_access import has_active_public_file_share
 from django.db.models import QuerySet
 from django.http import HttpResponse
 from django.utils.translation import gettext
@@ -169,9 +168,6 @@ def auth(file, mk_file_auth):
     # 公共/临时文件无需鉴权
     if file.source_type in _PUBLIC_SOURCE_TYPES:
         return
-    # 文件公开授权仅在对应的公开分享及聊天仍有效时生效；旧的无关联授权不再放行。
-    if has_active_public_file_share(file.id):
-        return
     if file.source_type == FileSourceType.APPLICATION:
         application = QuerySet(Application).filter(id=file.source_id).first()
         if application is None:
@@ -203,15 +199,7 @@ def _auth_chat(file, token, user_type):
     if file.source_type == FileSourceType.CHAT:
         if file.meta.get('user_id') == user_id:
             return
-        # 非本人:存在分享链接才允许
-        if not QuerySet(ChatShareLink).filter(
-                chat_id=file.source_id, share_type=ShareLinkType.PUBLIC, chat__is_deleted=False,
-        ).exists():
-            _deny()
-        # 匿名用户还需满足应用的登录要求
-        if user_type == AuthenticationType.CHAT_ANONYMOUS_USER:
-            _check_anonymous_login(file.source_id)
-        return
+        _deny()
 
     # DOCUMENT / KNOWLEDGE
     if file.source_type == FileSourceType.DOCUMENT:
@@ -233,16 +221,6 @@ def _auth_chat(file, token, user_type):
 
     get_authorized = DatabaseModelManage.get_model('get_knowledge_list_of_authorized')
     if knowledge_id not in get_authorized(user_id, [knowledge_id]):
-        _deny()
-
-
-def _check_anonymous_login(chat_id):
-    access_token = ApplicationAccessToken.objects.filter(
-        application__chat__id=chat_id,
-        application__chat__is_deleted=False,
-    ).first()
-    if (access_token and access_token.authentication
-            and access_token.authentication_value.get('type') == 'login'):
         _deny()
 
 

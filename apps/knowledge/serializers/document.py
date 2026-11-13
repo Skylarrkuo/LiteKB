@@ -34,7 +34,6 @@ from common.handle.impl.text.xlsx_split_handle import XlsxSplitHandle
 from common.handle.impl.text.zip_split_handle import ZipSplitHandle
 from common.utils.common import bulk_create_in_batches, get_file_content, parse_file_link, parse_image, post
 from common.utils.file_reference import get_knowledge_source_file
-from common.utils.fork import Fork
 from common.utils.logger import maxkb_logger
 from common.utils.split_model import flat_map, get_split_model
 from django.contrib.postgres.fields import JSONField
@@ -91,7 +90,6 @@ from knowledge.task.embedding import (
     update_embedding_knowledge_id,
 )
 from knowledge.task.generate import generate_related_by_document_id
-from knowledge.task.sync import sync_web_document
 
 default_split_handle = TextSplitHandle()
 split_handles = [
@@ -600,81 +598,7 @@ class DocumentSerializers(serializers.Serializer):
 
         @transaction.atomic
         def sync(self, with_valid=True, with_embedding=True):
-            if with_valid:
-                self.is_valid(raise_exception=True)
-            document_id = self.data.get("document_id")
-            document = QuerySet(Document).filter(id=document_id, knowledge_id=self.data.get("knowledge_id")).first()
-            state = State.SUCCESS
-            if document.type != KnowledgeType.WEB:
-                return True
-            try:
-                ListenerManagement.update_status(
-                    QuerySet(Document).filter(id=document_id), TaskType.SYNC, State.PENDING
-                )
-                ListenerManagement.get_aggregation_document_status(document_id)()
-                source_url = document.meta.get("source_url")
-                selector_list = (
-                    document.meta.get("selector").split(" ")
-                    if "selector" in document.meta and document.meta.get("selector") is not None
-                    else []
-                )
-                result = Fork(source_url, selector_list).fork()
-                if result.status == 200:
-                    # 删除段落
-                    QuerySet(model=Paragraph).filter(document_id=document_id).delete()
-                    # 删除问题
-                    QuerySet(model=ProblemParagraphMapping).filter(document_id=document_id).delete()
-                    delete_problems_and_mappings([document_id])
-                    # 删除向量库
-                    delete_embedding_by_document(document_id)
-                    paragraphs = get_split_model("web.md").parse(result.content)
-                    char_length = reduce(lambda x, y: x + y, [len(p.get("content")) for p in paragraphs], 0)
-                    QuerySet(Document).filter(id=document_id).update(char_length=char_length)
-                    document_paragraph_model = DocumentSerializers.Create.get_paragraph_model(document, paragraphs)
-
-                    paragraph_model_list = document_paragraph_model.get("paragraph_model_list")
-                    problem_paragraph_object_list = document_paragraph_model.get("problem_paragraph_object_list")
-                    problem_model_list, problem_paragraph_mapping_list = ProblemParagraphManage(
-                        problem_paragraph_object_list, document.knowledge_id
-                    ).to_problem_model_list()
-                    # 批量插入段落
-                    if len(paragraph_model_list) > 0:
-                        max_position = (
-                            Paragraph.objects.filter(document_id=document_id).aggregate(max_position=Max("position"))[
-                                "max_position"
-                            ]
-                            or 0
-                        )
-                        for i, paragraph in enumerate(paragraph_model_list):
-                            paragraph.position = max_position + i + 1
-                        QuerySet(Paragraph).bulk_create(paragraph_model_list)
-                    # 批量插入问题
-                    QuerySet(Problem).bulk_create(problem_model_list) if len(problem_model_list) > 0 else None
-                    # 插入关联问题
-                    QuerySet(ProblemParagraphMapping).bulk_create(problem_paragraph_mapping_list) if len(
-                        problem_paragraph_mapping_list
-                    ) > 0 else None
-                    # 向量化
-                    if with_embedding:
-                        embedding_model_id = get_embedding_model_id_by_knowledge_id(document.knowledge_id)
-                        ListenerManagement.update_status(
-                            QuerySet(Document).filter(id=document_id), TaskType.EMBEDDING, State.PENDING
-                        )
-                        ListenerManagement.update_status(
-                            QuerySet(Paragraph).filter(document_id=document_id), TaskType.EMBEDDING, State.PENDING
-                        )
-                        ListenerManagement.get_aggregation_document_status(document_id)()
-                        embedding_by_document.delay(document_id, embedding_model_id)
-
-                else:
-                    state = State.FAILURE
-            except Exception as e:
-                maxkb_logger.error(f"{str(e)}:{traceback.format_exc()}")
-                state = State.FAILURE
-            ListenerManagement.update_status(QuerySet(Document).filter(id=document_id), TaskType.SYNC, state)
-            ListenerManagement.update_status(QuerySet(Paragraph).filter(document_id=document_id), TaskType.SYNC, state)
-            ListenerManagement.get_aggregation_document_status(document_id)()
-            return True
+            raise AppApiException(400, "Web synchronization is disabled in LiteKB")
 
     class Operate(serializers.Serializer):
         workspace_id = serializers.CharField(required=False, label=_("workspace id"), allow_blank=True)
@@ -1105,14 +1029,7 @@ class DocumentSerializers(serializers.Serializer):
             )
 
         def save_web(self, instance: Dict, with_valid=True):
-            if with_valid:
-                DocumentWebInstanceSerializer(data=instance).is_valid(raise_exception=True)
-                self.is_valid(raise_exception=True)
-            knowledge_id = self.data.get("knowledge_id")
-            user_id = self.data.get("user_id")
-            source_url_list = instance.get("source_url_list")
-            selector = instance.get("selector")
-            sync_web_document.delay(knowledge_id, user_id, source_url_list, selector)
+            raise AppApiException(400, "Web synchronization is disabled in LiteKB")
 
         def save_qa(self, instance: Dict, with_valid=True):
             if with_valid:
@@ -1426,24 +1343,7 @@ class DocumentSerializers(serializers.Serializer):
             )
 
         def batch_sync(self, instance: Dict, with_valid=True):
-            if with_valid:
-                BatchSerializer(data=instance).is_valid(model=Document, raise_exception=True)
-                self.is_valid(raise_exception=True)
-            # 异步同步
-            work_thread_pool.submit(
-                lambda doc_ids: [
-                    DocumentSerializers.Sync(
-                        data={
-                            "document_id": doc_id,
-                            "knowledge_id": self.data.get("knowledge_id"),
-                            "workspace_id": self.data.get("workspace_id"),
-                        }
-                    ).sync()
-                    for doc_id in doc_ids
-                ],
-                instance.get("id_list"),
-            )
-            return True
+            raise AppApiException(400, "Web synchronization is disabled in LiteKB")
 
         @transaction.atomic
         def batch_delete(self, instance: Dict, with_valid=True):

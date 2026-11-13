@@ -49,7 +49,7 @@ from django.db.models import Q, QuerySet
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from knowledge.models import File, FileSourceType, Knowledge, KnowledgeScope
+from knowledge.models import File, FileSourceType, Knowledge, KnowledgeScope, SearchMode
 from knowledge.serializers.common import BatchMoveSerializer, BatchSerializer
 from knowledge.serializers.knowledge import KnowledgeModelSerializer, KnowledgeSerializer
 from application.flow.backend.sandbox_mcp import SandboxMCPBackend
@@ -469,22 +469,12 @@ class NoReferencesSetting(serializers.Serializer):
 
 
 class KnowledgeSettingSerializer(serializers.Serializer):
-    top_n = serializers.FloatField(required=True, max_value=10000, min_value=1, label=_("Reference segment number"))
-    similarity = serializers.FloatField(required=True, max_value=1, min_value=0, label=_("Acquaintance"))
+    top_n = serializers.IntegerField(required=True, max_value=10000, min_value=1, label=_("Reference segment number"))
+    similarity = serializers.FloatField(required=True, max_value=2, min_value=0, label=_("Acquaintance"))
     max_paragraph_char_number = serializers.IntegerField(
         required=True, min_value=500, max_value=100000, label=_("Maximum number of quoted characters")
     )
-    search_mode = serializers.CharField(
-        required=True,
-        validators=[
-            validators.RegexValidator(
-                regex=re.compile("^embedding|keywords|blend$"),
-                message=_("The type only supports embedding|keywords|blend"),
-                code=500,
-            )
-        ],
-        label=_("Retrieval Mode"),
-    )
+    search_mode = serializers.ChoiceField(choices=SearchMode.choices, label=_("Retrieval Mode"))
 
     no_references_setting = NoReferencesSetting(required=True, label=_("Segment settings not referenced"))
 

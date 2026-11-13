@@ -19,6 +19,7 @@ from rest_framework.exceptions import ValidationError, ErrorDetail
 
 from application.flow.common import Answer, NodeChunk
 from application.long_term_memory import extract_long_term_memory
+from litekb_api.run_guard import defer_memory_update
 from application.models import ApplicationChatUserStats
 from application.models import ChatRecord, ChatUserType
 from common.field.common import InstanceField
@@ -103,14 +104,10 @@ class WorkFlowPostHandler:
                 application_public_access_client.save()
         self.chat_info = None
 
-        extract_long_term_memory.apply_async(
-            args=(
-                workflow_body.get('workspace_id'),
-                workflow_body.get('application_id'),
-                workflow_body.get('chat_user_id'),
-            ),
-            countdown=1,
-        )
+        args = (workflow_body.get('workspace_id'), workflow_body.get('application_id'),
+                workflow_body.get('chat_user_id'))
+        if not defer_memory_update(args):
+            extract_long_term_memory.apply_async(args=args, countdown=1)
 
 
 class KnowledgeWorkflowPostHandler(WorkFlowPostHandler):

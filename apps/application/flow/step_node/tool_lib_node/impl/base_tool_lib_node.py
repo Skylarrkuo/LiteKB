@@ -27,6 +27,7 @@ from common.database_model_manage.database_model_manage import DatabaseModelMana
 from common.exception.app_exception import AppApiException
 from common.utils.common import common_convert_value
 from common.utils.logger import maxkb_logger
+from litekb_api.run_guard import uncertain_effect
 from common.utils.rsa_util import rsa_long_decrypt
 from common.utils.shared_resource_auth import get_runtime_user_id, validate_authorized_tool_ids
 from common.utils.tool_code import ToolExecutor
@@ -284,6 +285,7 @@ class BaseToolLibNodeNode(IToolLibNode):
             return result
         except Exception as e:
             maxkb_logger.error(f"Tool execution error: {traceback.format_exc()}")
+            uncertain_effect()
             QuerySet(ToolRecord).filter(id=task_record_id).update(
                 state=State.FAILURE,
                 run_time=time.time() - start_time,

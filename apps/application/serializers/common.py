@@ -16,6 +16,7 @@ from common.database_model_manage.database_model_manage import DatabaseModelMana
 from common.exception.app_exception import ChatException
 from django.core.cache import cache
 from django.db.models import QuerySet
+from litekb_api.run_guard import fenced_write, in_run
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from knowledge.models import Document
@@ -73,13 +74,15 @@ class ToolExecute:
             "run_time": tool_record.run_time,
         }
 
+    @fenced_write
     def set_record(self, tool_record):
-        cache.set(
-            Cache_Version.TOOL_WORKFLOW_EXECUTE.get_key(key=self.tool_record_id),
-            self.to_dict(tool_record),
-            version=Cache_Version.TOOL_WORKFLOW_EXECUTE.get_version(),
-            timeout=60 * 30,
-        )
+        if not in_run():
+            cache.set(
+                Cache_Version.TOOL_WORKFLOW_EXECUTE.get_key(key=self.tool_record_id),
+                self.to_dict(tool_record),
+                version=Cache_Version.TOOL_WORKFLOW_EXECUTE.get_version(),
+                timeout=60 * 30,
+            )
         if not self.debug:
             QuerySet(ToolRecord).update_or_create(
                 id=tool_record.id,
@@ -153,7 +156,9 @@ class ChatInfo:
         return no_references_setting
 
     def get_application(self):
-        if self.debug:
+        if getattr(self, 'pinned_version', None) is not None:
+            application = self.pinned_version
+        elif self.debug:
             application = QuerySet(Application).filter(id=self.application_id).first()
             if not application:
                 raise ChatException(500, _("The application does not exist"))
@@ -313,6 +318,7 @@ class ChatInfo:
             "form_data": form_data,
         }
 
+    @fenced_write
     def set_chat(self, question):
         if not self.debug:
             if not QuerySet(Chat).filter(id=self.chat_id).exists():
@@ -327,6 +333,7 @@ class ChatInfo:
                     asker=self.get_chat_user(),
                 ).save()
 
+    @fenced_write
     def set_chat_variable(self, chat_context):
         if not self.debug:
             chat = QuerySet(Chat).filter(id=self.chat_id).first()
@@ -356,6 +363,7 @@ class ChatInfo:
                 or {}
             )
 
+    @fenced_write
     def append_chat_record(self, chat_record: ChatRecord):
         chat_record.problem_text = chat_record.problem_text[0:10240] if chat_record.problem_text is not None else ""
         chat_record.answer_text = chat_record.answer_text[0:40960] if chat_record.answer_text is not None else ""
@@ -476,6 +484,8 @@ class ChatInfo:
         )
 
     def set_cache(self):
+        if in_run():
+            return
         cache.set(
             Cache_Version.CHAT.get_key(key=self.chat_id),
             self.to_dict(),
@@ -501,6 +511,8 @@ class ChatInfo:
 
     @staticmethod
     def get_cache(chat_id):
+        if in_run():
+            return None
         chat_info_dict = cache.get(
             Cache_Version.CHAT.get_key(key=chat_id), version=Cache_Version.CHAT_INFO.get_version()
         )

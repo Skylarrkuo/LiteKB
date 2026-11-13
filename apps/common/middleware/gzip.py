@@ -24,6 +24,8 @@ class GZipMiddleware(MiddlewareMixin):
     max_random_bytes = 100
 
     def process_response(self, request, response):
+        if response.get("Content-Type", "").split(";")[0] == "text/event-stream":
+            return response
         if request.method != 'GET' or request.path.startswith('/api'):
             return response
         # It's not worth attempting to compress really short responses.

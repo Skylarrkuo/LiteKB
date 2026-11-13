@@ -97,6 +97,8 @@ def event_content(
     try:
         response_reasoning_content = False
         for chunk in response:
+            if getattr(manage, "is_interrupted", lambda: False)():
+                break
             reasoning_chunk = reasoning.get_reasoning_content(chunk)
             content_chunk = reasoning_chunk.get("content")
             if "reasoning_content" in chunk.additional_kwargs:
@@ -214,6 +216,7 @@ def event_content(
             0,
             0,
             {
+                "node_status": "ERROR",
                 "node_is_end": False,
                 "view_type": "many_view",
                 "node_type": "ai-chat-node",

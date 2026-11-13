@@ -190,7 +190,7 @@ def loop(workflow_manage_new_instance, node: INode, generate_loop):
                 node.err_message = chunk.get('content')
                 return
             node_type = chunk.get('node_type')
-            if node_type == 'form-node':
+            if node_type == 'form-node' and chunk.get('requires_input', True):
                 break_outer = True
                 is_interrupt_exec = True
         start_node_id = None

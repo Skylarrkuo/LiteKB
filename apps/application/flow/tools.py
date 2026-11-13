@@ -14,7 +14,9 @@ import os
 import queue
 import re
 import shutil
+import subprocess
 import threading
+import tempfile
 import zipfile
 from copy import deepcopy
 from functools import reduce
@@ -38,6 +40,7 @@ import uuid_utils.compat as uuid
 from asgiref.sync import sync_to_async
 from common.result import result
 from common.utils.logger import maxkb_logger
+from litekb_api.run_guard import in_run, is_interrupted, workflow_tool_scope
 from deepagents import create_deep_agent
 from django.db.models import OuterRef, QuerySet, Subquery
 from django.http import StreamingHttpResponse
@@ -488,7 +491,8 @@ async def _initialize_skills(mcp_servers, temp_dir) -> SandboxMCPBackend:
                         with open(env_path, "w", encoding="utf-8") as f:
                             f.write(env_content)
 
-        os.system("chmod -R g+rx " + temp_dir)  # 确保技能目录可访问
+        if os.name == "posix":
+            subprocess.run(["chmod", "-R", "g+rx", "--", temp_dir], check=True)
 
     return SandboxMCPBackend(mcp_config)
 
@@ -827,7 +831,10 @@ def mcp_response_generator(
     result_queue = queue.Queue()
     loop = get_global_loop()  # 使用共享循环
     # 创建临时文件夹
-    if chat_id:
+    if in_run():
+        # An earlier cancelled call can still be unwinding in this session.
+        temp_dir = os.path.join(tempfile.gettempdir(), "litekb-run-" + str(uuid.uuid7()))
+    elif chat_id:
         temp_dir = os.path.join("/tmp", chat_id)
     else:
         temp_dir = os.path.join("/tmp", str(uuid.uuid7()))
@@ -851,8 +858,13 @@ def mcp_response_generator(
                 chat_id,
                 extra_tools,
             )
-            async for chunk in async_gen:
-                result_queue.put(("data", chunk))
+            try:
+                async for chunk in async_gen:
+                    if is_interrupted():
+                        break
+                    result_queue.put(("data", chunk))
+            finally:
+                await async_gen.aclose()
         except Exception as e:
             maxkb_logger.error(f"Exception: {e}", exc_info=True)
             result_queue.put(("error", e))
@@ -860,19 +872,21 @@ def mcp_response_generator(
             result_queue.put(("done", None))
 
     # 在全局循环中调度任务
-    asyncio.run_coroutine_threadsafe(_run(), loop)
-
-    while True:
-        msg_type, data = result_queue.get()
-        if msg_type == "done":
-            # 清理临时文件夹
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            break
-        if msg_type == "error":
-            # 清理临时文件夹
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            raise data
-        yield data
+    future = asyncio.run_coroutine_threadsafe(_run(), loop)
+    try:
+        while not is_interrupted():
+            try:
+                msg_type, data = result_queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            if msg_type == "done":
+                break
+            if msg_type == "error":
+                raise data
+            yield data
+    finally:
+        future.cancel()
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 async def anext_async(agen):
@@ -1152,12 +1166,10 @@ def get_workflow_args(tool, qv):
 
 def get_workflow_func(source_type, source_id, tool, qv, workspace_id, user_id=None):
     tool_id = tool.id
-    tool_record_id = str(uuid.uuid7())
-    took_execute = ToolExecute(tool_id, tool_record_id, workspace_id, source_type, source_id, False)
-
     def inner(**kwargs):
         from application.flow.tool_workflow_manage import ToolWorkflowManage
-
+        tool_record_id = str(uuid.uuid7())
+        took_execute = ToolExecute(tool_id, tool_record_id, workspace_id, source_type, source_id, False)
         work_flow_manage = ToolWorkflowManage(
             Workflow.new_instance(qv.work_flow, WorkflowMode.TOOL),
             {
@@ -1170,15 +1182,16 @@ def get_workflow_func(source_type, source_id, tool, qv, workspace_id, user_id=No
                 "default_model_setting": qv.default_model_setting,
             },
             ToolWorkflowPostHandler(took_execute, tool_id),
-            is_the_task_interrupted=lambda: False,
+            is_the_task_interrupted=is_interrupted,
             child_node=None,
             start_node_id=None,
             start_node_data=None,
             chat_record=None,
         )
-        res = work_flow_manage.run()
-        for r in res:
-            pass
+        with workflow_tool_scope(tool_id, kwargs):
+            res = work_flow_manage.run()
+            for r in res:
+                pass
         return work_flow_manage.out_context
 
     return inner

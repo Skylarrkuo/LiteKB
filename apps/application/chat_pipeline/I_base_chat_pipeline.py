@@ -20,7 +20,8 @@ class ParagraphPipelineModel:
     def __init__(self, _id: str, document_id: str, knowledge_id: str, content: str, title: str, status: str,
                  is_active: bool, comprehensive_score: float, similarity: float, knowledge_name: str,
                  document_name: str,
-                 hit_handling_method: str, directly_return_similarity: float, knowledge_type, meta: dict = None):
+                 hit_handling_method: str, directly_return_similarity: float, knowledge_type, meta: dict = None,
+                 rank_score=None):
         self.id = _id
         self.document_id = document_id
         self.knowledge_id = knowledge_id
@@ -30,6 +31,7 @@ class ParagraphPipelineModel:
         self.is_active = is_active
         self.comprehensive_score = comprehensive_score
         self.similarity = similarity
+        self.rank_score = rank_score
         self.knowledge_name = knowledge_name
         self.document_name = document_name
         self.hit_handling_method = hit_handling_method
@@ -48,6 +50,7 @@ class ParagraphPipelineModel:
             'is_active': self.is_active,
             'comprehensive_score': self.comprehensive_score,
             'similarity': self.similarity,
+            **({'rank_score': self.rank_score} if self.rank_score is not None else {}),
             'knowledge_name': self.knowledge_name,
             'document_name': self.document_name,
             'knowledge_type': self.knowledge_type,
@@ -57,6 +60,7 @@ class ParagraphPipelineModel:
     class builder:
         def __init__(self):
             self.similarity = None
+            self.rank_score = None
             self.paragraph = {}
             self.comprehensive_score = None
             self.document_name = None
@@ -104,8 +108,9 @@ class ParagraphPipelineModel:
             self.comprehensive_score = comprehensive_score
             return self
 
-        def add_similarity(self, similarity: float):
+        def add_similarity(self, similarity: float, rank_score=None):
             self.similarity = similarity
+            self.rank_score = rank_score
             return self
 
         def add_meta(self, meta: dict):
@@ -121,7 +126,7 @@ class ParagraphPipelineModel:
                                           self.comprehensive_score, self.similarity, self.knowledge_name,
                                           self.document_name, self.hit_handling_method, self.directly_return_similarity,
                                           self.knowledge_type,
-                                          self.meta)
+                                          self.meta, self.rank_score)
 
 
 class IBaseChatPipelineStep:

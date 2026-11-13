@@ -90,7 +90,7 @@ def write_context_stream(node_variable: Dict, workflow_variable: Dict, node: INo
         child_node = response_content.get('child_node')
         node_type = response_content.get('node_type')
         _reasoning_content = (response_content.get('reasoning_content', '') or '')
-        if node_type == 'form-node':
+        if node_type == 'form-node' and response_content.get('requires_input', True):
             is_interrupt_exec = True
         answer += content
         reasoning_content += _reasoning_content
@@ -238,7 +238,7 @@ class BaseToolWorkflowLibNodeNode(IToolWorkflowLibNode):
                 start_node_data=start_node_data,
                 child_node=child_node,
                 chat_record=self.to_chat_record(took_execute.get_record()),
-                is_the_task_interrupted=lambda: False)
+                is_the_task_interrupted=self.workflow_manage.is_the_task_interrupted)
 
             return work_flow_manage
 

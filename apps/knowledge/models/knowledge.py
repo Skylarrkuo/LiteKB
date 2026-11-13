@@ -319,6 +319,7 @@ class SearchMode(models.TextChoices):
     embedding = "embedding"
     keywords = "keywords"
     blend = "blend"
+    rrf = "rrf"
 
 
 class FileSourceType(models.TextChoices):

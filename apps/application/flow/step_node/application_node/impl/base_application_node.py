@@ -65,7 +65,7 @@ def write_context_stream(node_variable: Dict, workflow_variable: Dict, node: INo
         real_node_id = response_content.get('real_node_id')
         node_is_end = response_content.get('node_is_end', False)
         _reasoning_content = (response_content.get('reasoning_content', '') or '')
-        if node_type == 'form-node':
+        if node_type == 'form-node' and response_content.get('requires_input', True):
             is_interrupt_exec = True
         answer += content
         reasoning_content += _reasoning_content
@@ -90,6 +90,7 @@ def write_context_stream(node_variable: Dict, workflow_variable: Dict, node: INo
 
         yield {'content': content,
                'node_type': node_type,
+               'requires_input': response_content.get('requires_input', False),
                'runtime_node_id': runtime_node_id, 'chat_record_id': chat_record_id,
                'reasoning_content': _reasoning_content,
                'child_node': child_node,
@@ -228,7 +229,7 @@ class BaseApplicationNode(IApplicationNode):
             'ip_address': ip_address,
             'source': source,
             'debug': False
-        }).chat(instance=
+        }, context={"interrupt": self.workflow_manage.is_the_task_interrupted}).chat(instance=
                 {'message': message,
                  're_chat': re_chat,
                  'stream': stream,
