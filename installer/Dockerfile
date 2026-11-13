@@ -1,57 +1,73 @@
-FROM node:24-alpine AS web-build
-COPY ui ui
-RUN cd ui && ls -la && if [ -d "dist" ]; then exit 0; fi && \
-    npm install --prefer-offline --no-audit && \
-    npm install -D concurrently && \
-    NODE_OPTIONS="--max-old-space-size=4096" npx concurrently "npm run build" "npm run build-chat" && \
-    find . -maxdepth 1 ! -name '.' ! -name 'dist' ! -name 'public' -exec rm -rf {} +
+# syntax=docker/dockerfile:1.12
+ARG NODE_IMAGE=node:24-alpine
+ARG PYTHON_IMAGE=python:3.11-slim-bookworm
+ARG LITEKB_MEDIA_NODES=0
+ARG LITEKB_EXTENDED_PROVIDERS=0
+ARG LITEKB_LOCAL_MODEL=0
 
-FROM ghcr.io/1panel-dev/maxkb-base:python3.11-pg17.11-20261109 AS stage-build
-COPY --chmod=700 . /opt/maxkb-app
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc g++ gettext libexpat1-dev libffi-dev && \
-    apt-get clean all  && \
+FROM ${NODE_IMAGE} AS studio
+ARG LITEKB_MEDIA_NODES
+WORKDIR /build/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY ui/ ./
+ENV VITE_LITEKB_MEDIA_NODES=$LITEKB_MEDIA_NODES NODE_OPTIONS=--max-old-space-size=4096
+RUN npm run build && test -s dist/admin/index.html
+
+FROM ${PYTHON_IMAGE} AS python-build
+ARG LITEKB_MEDIA_NODES
+ARG LITEKB_EXTENDED_PROVIDERS
+ARG LITEKB_LOCAL_MODEL
+ARG UV_VERSION=0.13.7
+ENV TIKTOKEN_CACHE_DIR=/opt/litekb-tokenizers UV_LINK_MODE=copy
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential gettext libffi-dev && \
     rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml installer/build-dependencies.sh ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    pip install --disable-pip-version-check --no-cache-dir "uv==${UV_VERSION}" && \
+    sh build-dependencies.sh
+COPY installer/sandbox.c ./
+RUN mkdir -p sandbox/lib && gcc -O2 -shared -fPIC -o sandbox/lib/sandbox.so sandbox.c -ldl
+COPY apps/ ./apps/
+RUN find apps/locales -name '*.po' -exec sh -c 'for f do msgfmt -o "${f%.po}.mo" "$f"; done' sh {} +
+
+FROM ${PYTHON_IMAGE} AS runtime
+ARG LITEKB_MEDIA_NODES
+ARG LITEKB_EXTENDED_PROVIDERS
+ARG LITEKB_LOCAL_MODEL
+ARG DOCKER_IMAGE_TAG=dev
 WORKDIR /opt/maxkb-app
-RUN gcc -shared -fPIC -o ${MAXKB_SANDBOX_HOME}/lib/sandbox.so /opt/maxkb-app/installer/sandbox.c -ldl && \
-    rm -rf /opt/maxkb-app/ui && \
-    pip install uv --break-system-packages && \
-    python -m uv pip install -r pyproject.toml && \
-    find /opt/maxkb-app  -depth \( -name ".git*" -o -name ".docker*" -o -name ".idea*" -o -name ".editorconfig*" -o -name ".prettierrc*" -o -name "README.md" -o -name "poetry.lock" -o -name "pyproject.toml"  \) -exec rm -rf {} + && \
-    python /opt/maxkb-app/apps/manage.py compilemessages && \
-    export PIP_TARGET=/opt/maxkb-app/sandbox/python-packages && \
-    python -m uv pip install --target=$PIP_TARGET requests pymysql psycopg2-binary && \
-    rm -rf /opt/maxkb-app/installer
-COPY --from=web-build --chmod=700 ui /opt/maxkb-app/ui
-
-FROM ghcr.io/1panel-dev/maxkb-base:python3.11-pg17.11-20261109
-ARG DOCKER_IMAGE_TAG=dev \
-    BUILD_AT \
-    GITHUB_COMMIT
-
-ENV MAXKB_VERSION="${DOCKER_IMAGE_TAG} (build at ${BUILD_AT}, commit: ${GITHUB_COMMIT})" \
-    MAXKB_DB_NAME=maxkb \
-    MAXKB_DB_HOST=127.0.0.1 \
-    MAXKB_DB_PORT=5432  \
-    MAXKB_DB_USER=${POSTGRES_USER} \
-    MAXKB_DB_PASSWORD=${POSTGRES_PASSWORD} \
-    MAXKB_DB_MAX_OVERFLOW=80 \
-    MAXKB_REDIS_HOST=127.0.0.1 \
-    MAXKB_REDIS_PORT=6379 \
-    MAXKB_REDIS_DB=0 \
-    MAXKB_REDIS_PASSWORD=${REDIS_PASSWORD} \
-    MAXKB_EMBEDDING_MODEL_PATH=/opt/maxkb-app/model/embedding \
-    MAXKB_EMBEDDING_MODEL_NAME=/opt/maxkb-app/model/embedding/shibing624_text2vec-base-chinese \
-    MAXKB_LOCAL_MODEL_HOST=127.0.0.1 \
-    MAXKB_LOCAL_MODEL_PORT=11636 \
-    MAXKB_LOCAL_MODEL_PROTOCOL=http \
-    PIP_TARGET=/opt/maxkb/python-packages
-
-WORKDIR /opt/maxkb-app
-COPY --from=stage-build /opt/maxkb-app /opt/maxkb-app
-COPY --from=stage-build /opt/py3 /opt/py3
-
+ENV PATH=/opt/py3/bin:$PATH \
+    PYTHONUNBUFFERED=1 PYTHONPATH=/opt/maxkb-app/apps DJANGO_SETTINGS_MODULE=maxkb.settings \
+    TIKTOKEN_CACHE_DIR=/opt/litekb-tokenizers MAXKB_VERSION=$DOCKER_IMAGE_TAG \
+    LITEKB_MEDIA_NODES=$LITEKB_MEDIA_NODES LITEKB_EXTENDED_PROVIDERS=$LITEKB_EXTENDED_PROVIDERS \
+    LITEKB_LOCAL_MODEL=$LITEKB_LOCAL_MODEL MAXKB_CONFIG_TYPE=ENV MAXKB_SANDBOX=1 \
+    MAXKB_SANDBOX_HOME=/opt/maxkb-app/sandbox \
+    MAXKB_SANDBOX_PYTHON_PACKAGE_PATHS=/opt/maxkb-app/sandbox/python-packages,/opt/maxkb/python-packages \
+    MAXKB_SANDBOX_PYTHON_BANNED_HOSTS=127.0.0.0/8,localhost,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,postgres,redis,api,worker,local-model,0.0.0.0/32,::/0
+RUN apt-get update && apt-get install -y --no-install-recommends gosu libpq5 && \
+    if [ "$LITEKB_MEDIA_NODES" = 1 ]; then apt-get install -y --no-install-recommends ffmpeg; fi && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --no-create-home --home /opt/maxkb-app/sandbox --shell /usr/sbin/nologin --gid root sandbox && \
+    mkdir -p -m 700 tmp data /opt/maxkb/logs && \
+    find /etc -type f ! -path /etc/resolv.conf ! -path /etc/hosts ! -path /etc/hostname -exec chmod g-rx {} + && \
+    chmod g-rwx /usr/local/bin/* /usr/bin/* /usr/sbin/* && chmod g+rx /usr/local/bin/python* && \
+    ([ ! -e /usr/bin/ld.so ] || chmod g+rx /usr/bin/ld.so) && \
+    chmod -R g-rwx /var/lock && chmod g-rwx /var/tmp /tmp && chmod g+rx /tmp
+COPY --from=python-build /opt/py3 /opt/py3
+COPY --from=python-build /opt/litekb-tokenizers /opt/litekb-tokenizers
+COPY --from=python-build --chmod=550 /build/sandbox ./sandbox
+COPY --from=python-build --chmod=700 /build/apps ./apps
+COPY --from=studio --chmod=700 /build/ui/dist ./ui/dist
+COPY --chmod=700 main.py ./
+COPY --chmod=644 LICENSE ./
+COPY --chmod=500 installer/litekb-entrypoint.sh /usr/local/bin/litekb
+RUN --network=none --mount=type=tmpfs,target=/opt/maxkb/logs --mount=type=tmpfs,target=/opt/maxkb-app/data \
+    --mount=type=tmpfs,target=/tmp \
+    PYTHONDONTWRITEBYTECODE=1 MAXKB_ENABLE_FORCE_GC=0 python -c \
+    'from maxkb.wsgi.web import application; from django.urls import resolve; assert callable(application) and resolve("/health/ready").url_name == "ready"'
 EXPOSE 8080
-VOLUME /opt/maxkb
-ENTRYPOINT ["bash", "-c"]
-CMD [ "/usr/bin/start-all.sh" ]
+HEALTHCHECK --interval=30s --timeout=6s --start-period=60s --retries=3 CMD ["/usr/local/bin/litekb", "health"]
+ENTRYPOINT ["/usr/local/bin/litekb"]
+CMD ["api"]

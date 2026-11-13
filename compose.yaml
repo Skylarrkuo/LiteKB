@@ -1,0 +1,84 @@
+name: litekb
+
+x-service: &service
+  image: litekb:${LITEKB_TAG:-local}
+  build:
+    context: .
+    dockerfile: installer/Dockerfile
+    args:
+      DOCKER_IMAGE_TAG: ${LITEKB_TAG:-local}
+      LITEKB_MEDIA_NODES: ${LITEKB_MEDIA_NODES:-0}
+      LITEKB_EXTENDED_PROVIDERS: ${LITEKB_EXTENDED_PROVIDERS:-0}
+      LITEKB_LOCAL_MODEL: ${LITEKB_LOCAL_MODEL:-0}
+  environment: &environment
+    MAXKB_DB_HOST: postgres
+    MAXKB_DB_NAME: litekb
+    MAXKB_DB_USER: litekb
+    MAXKB_DB_PASSWORD: ${LITEKB_DB_PASSWORD:?Set LITEKB_DB_PASSWORD}
+    MAXKB_REDIS_HOST: redis
+    MAXKB_REDIS_PASSWORD: ${LITEKB_REDIS_PASSWORD:?Set LITEKB_REDIS_PASSWORD}
+    MAXKB_SECRET_KEY: ${LITEKB_SECRET_KEY:?Set LITEKB_SECRET_KEY}
+    MAXKB_LOCAL_MODEL_HOST: local-model
+    MAXKB_DB_POOL_SIZE: 3
+    MAXKB_DB_MAX_OVERFLOW: 5
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *service
+    command: [api]
+    environment:
+      <<: *environment
+      MAXKB_BOOTSTRAP_ADMIN_PASSWORD: ${LITEKB_ADMIN_PASSWORD:?Set LITEKB_ADMIN_PASSWORD}
+    ports:
+      - "${LITEKB_BIND:-127.0.0.1}:${LITEKB_PORT:-8080}:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  worker:
+    <<: *service
+    command: [worker]
+    depends_on:
+      api: {condition: service_healthy}
+  local-model:
+    <<: *service
+    profiles: [local-model]
+    command: [local-model]
+    volumes:
+      - models:/models
+    depends_on:
+      api: {condition: service_healthy}
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: litekb
+      POSTGRES_USER: litekb
+      POSTGRES_PASSWORD: ${LITEKB_DB_PASSWORD:?Set LITEKB_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./installer/litekb-init.sql:/docker-entrypoint-initdb.d/10-vector.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "litekb", "-d", "litekb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    user: redis
+    environment:
+      REDISCLI_AUTH: ${LITEKB_REDIS_PASSWORD:?Set LITEKB_REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDISCLI_AUTH\""]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  models:
+  pgdata:
+  redisdata:
