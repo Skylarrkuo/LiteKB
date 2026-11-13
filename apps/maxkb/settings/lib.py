@@ -7,6 +7,7 @@
     @desc:
 """
 import os
+from urllib.parse import quote
 
 from redis.sentinel import Sentinel
 
@@ -20,6 +21,7 @@ if not os.path.exists(celery_data_dir) or not os.path.isdir(celery_data_dir):
 # Celery using redis as broker
 redis_celery_once_db = CONFIG.get("REDIS_DB")
 redis_celery_db = CONFIG.get('REDIS_DB')
+redis_url_password = quote(str(CONFIG.get("REDIS_PASSWORD") or ""), safe="")
 CELERY_BROKER_URL_FORMAT = '%(protocol)s://:%(password)s@%(host)s:%(port)s/%(db)s'
 if CONFIG.get('REDIS_SENTINEL_MASTER') and CONFIG.get('REDIS_SENTINEL_SENTINELS'):
     sentinels_str = CONFIG.get('REDIS_SENTINEL_SENTINELS')
@@ -29,7 +31,7 @@ if CONFIG.get('REDIS_SENTINEL_MASTER') and CONFIG.get('REDIS_SENTINEL_SENTINELS'
         for host, port in [hostport.strip().split(':')]
     ]
     CELERY_BROKER_URL = ';'.join([CELERY_BROKER_URL_FORMAT % {
-        'protocol': 'sentinel', 'password': CONFIG.get('REDIS_PASSWORD'),
+        'protocol': 'sentinel', 'password': redis_url_password,
         'host': item[0], 'port': item[1], 'db': redis_celery_db
     } for item in sentinels])
     SENTINEL_OPTIONS = {
@@ -45,7 +47,7 @@ if CONFIG.get('REDIS_SENTINEL_MASTER') and CONFIG.get('REDIS_SENTINEL_SENTINELS'
     )
     master_host, master_port = sentinel.discover_master(CONFIG.get('REDIS_SENTINEL_MASTER'))
     celery_once_settings = {
-        'url': f"redis://:{CONFIG.get('REDIS_PASSWORD')}@{master_host}:{master_port}/{redis_celery_once_db}",
+        'url': f"redis://:{redis_url_password}@{master_host}:{master_port}/{redis_celery_once_db}",
         'master_name': CONFIG.get('REDIS_SENTINEL_MASTER'),
         'password': CONFIG.get('REDIS_PASSWORD'),
         'db': redis_celery_once_db,
@@ -53,7 +55,7 @@ if CONFIG.get('REDIS_SENTINEL_MASTER') and CONFIG.get('REDIS_SENTINEL_SENTINELS'
 else:
     CELERY_BROKER_URL = CELERY_BROKER_URL_FORMAT % {
         'protocol': 'redis',
-        'password': CONFIG.get('REDIS_PASSWORD'),
+        'password': redis_url_password,
         'host': CONFIG.get('REDIS_HOST'),
         'port': CONFIG.get('REDIS_PORT'),
         'db': redis_celery_db
@@ -62,7 +64,7 @@ else:
     celery_once_settings = {
         'url': CELERY_BROKER_URL_FORMAT % {
             'protocol': 'redis',
-            'password': CONFIG.get('REDIS_PASSWORD'),
+            'password': redis_url_password,
             'host': CONFIG.get('REDIS_HOST'),
             'port': CONFIG.get('REDIS_PORT'),
             'db': redis_celery_once_db,

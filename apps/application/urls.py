@@ -1,3 +1,4 @@
+from maxkb.capabilities import MEDIA_NODES
 from django.urls import path
 
 from . import views
@@ -38,10 +39,14 @@ urlpatterns = [
     path('workspace/<str:workspace_id>/application/<str:application_id>/application_version/<int:current_page>/<int:page_size>', views.ApplicationVersionView.Page.as_view()),
     path('workspace/<str:workspace_id>/application/<str:application_id>/application_version/<str:application_version_id>', views.ApplicationVersionView.Operate.as_view()),
     path('workspace/<str:workspace_id>/application/<str:application_id>/open', views.OpenView.as_view()),
-    path('workspace/<str:workspace_id>/application/<str:application_id>/text_to_speech', views.TextToSpeech.as_view()),
-    path('workspace/<str:workspace_id>/application/<str:application_id>/speech_to_text', views.SpeechToText.as_view()),
     path('workspace/<str:workspace_id>/application/<str:application_id>/play_demo_text', views.PlayDemoText.as_view()),
     path('workspace/<str:workspace_id>/application/<str:application_id>/mcp_tools', views.McpServers.as_view()),
     path('workspace/<str:workspace_id>/application/<str:application_id>/model/<str:model_id>/prompt_generate', views.PromptGenerateView.as_view()),
     path('chat_message/<str:chat_id>', views.ChatView.as_view()),
 ]
+
+if MEDIA_NODES:
+    urlpatterns += [
+        path('workspace/<str:workspace_id>/application/<str:application_id>/text_to_speech', views.TextToSpeech.as_view()),
+        path('workspace/<str:workspace_id>/application/<str:application_id>/speech_to_text', views.SpeechToText.as_view()),
+    ]

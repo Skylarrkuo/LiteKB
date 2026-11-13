@@ -10,7 +10,6 @@
 from pathlib import Path
 from ...const import CONFIG, PROJECT_DIR
 import os
-from django.utils.translation import gettext_lazy as _
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -58,7 +57,7 @@ APPS_DIR = os.path.join(PROJECT_DIR, 'apps')
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': ["apps/static/admin"],
+        'DIRS': [os.path.join(STATIC_ROOT, 'admin')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -69,22 +68,9 @@ TEMPLATES = [
             ],
         },
     },
-    {"NAME": "CHAT",
-     'BACKEND': 'django.template.backends.django.DjangoTemplates',
-     'DIRS': ["apps/static/chat"],
-     'APP_DIRS': True,
-     'OPTIONS': {
-         'context_processors': [
-             'django.template.context_processors.debug',
-             'django.template.context_processors.request',
-             'django.contrib.auth.context_processors.auth',
-             'django.contrib.messages.context_processors.messages',
-         ],
-     },
-     },
     {"NAME": "DOC",
      'BACKEND': 'django.template.backends.django.DjangoTemplates',
-     'DIRS': ["apps/static/drf_spectacular_sidecar"],
+     'DIRS': [os.path.join(STATIC_ROOT, 'drf_spectacular_sidecar')],
      'APP_DIRS': True,
      'OPTIONS': {
          'context_processors': [
@@ -97,8 +83,8 @@ TEMPLATES = [
      },
 ]
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'MaxKB API',
-    'DESCRIPTION': _('Intelligent customer service platform'),
+    'TITLE': 'LiteKB Local Model API',
+    'DESCRIPTION': 'Local embedding and reranking service',
     'VERSION': 'v2',
     'SERVE_INCLUDE_SCHEMA': False,
     # OTHER SETTINGS

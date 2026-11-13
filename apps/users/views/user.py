@@ -24,16 +24,13 @@ from common.log.log import log
 from common.result import result
 from common.utils.common import query_params_to_single_dict
 from common.utils.rsa_util import decrypt
-from maxkb.const import CONFIG
 from models_provider.api.model import DefaultModelResponse
 from users.api.user import UserProfileAPI, TestWorkspacePermissionUserApi, DeleteUserApi, EditUserApi, \
     ChangeUserPasswordApi, UserPageApi, UserListApi, UserPasswordResponse, WorkspaceUserAPI, ResetPasswordAPI, \
     SendEmailAPI, CheckCodeAPI, SwitchUserLanguageAPI
 from users.models import User
-from users.serializers.user import UserProfileSerializer, UserManageSerializer, CheckCodeSerializer, \
+from users.serializers.user import suggested_user_password, UserProfileSerializer, UserManageSerializer, CheckCodeSerializer, \
     SendEmailSerializer, RePasswordSerializer, SwitchLanguageSerializer, ResetCurrentUserPassword
-
-default_password = CONFIG.get('DEFAULT_PASSWORD', 'MaxKB@123..')
 
 
 def get_user_operation_object(user_id):
@@ -203,7 +200,7 @@ class UserManage(APIView):
                          PermissionConstants.WORKSPACE_CHAT_USER_CREATE, RoleConstants.ADMIN,
                          RoleConstants.WORKSPACE_MANAGE)
         def get(self, request: Request):
-            return result.success(data={'password': default_password})
+            return result.success(data={'password': suggested_user_password()})
 
     class Operate(APIView):
         authentication_classes = [TokenAuth]

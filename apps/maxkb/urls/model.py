@@ -18,11 +18,13 @@ Including another URLconf
 from django.urls import path, include
 
 from maxkb.const import CONFIG
+from maxkb.health import ready
 
 admin_api_prefix = CONFIG.get_admin_path()[1:] + '/api/'
 admin_ui_prefix = CONFIG.get_admin_path()
 chat_api_prefix = CONFIG.get_chat_path()[1:] + '/api/'
 chat_ui_prefix = CONFIG.get_chat_path()
 urlpatterns = [
+    path("health/ready", ready, name="ready"),
     path(admin_api_prefix, include("local_model.urls")),
 ]

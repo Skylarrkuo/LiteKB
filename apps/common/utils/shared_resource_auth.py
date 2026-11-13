@@ -50,6 +50,8 @@ def filter_authorized_ids(resource_type: str, ids: List[str], workspace_id: str,
     if not ids:
         return []
     ids = [str(resource_id) for resource_id in ids]
+    from litekb_api.run_policy import filter_ids
+    ids = filter_ids(resource_type, ids)
     if resource_type == "knowledge" and not user_id:
         return []
 

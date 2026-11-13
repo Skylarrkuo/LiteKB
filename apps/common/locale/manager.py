@@ -219,6 +219,14 @@ class LocaleManager:
         logger.info("Copied all locale files from admin to chat directory")
 
     @staticmethod
+    def compile_builtin_catalogs(directory):
+        from pathlib import Path
+        for source in Path(directory).glob("*/LC_MESSAGES/django.po"):
+            target = source.with_suffix(".mo")
+            if not target.exists() or source.stat().st_mtime_ns > target.stat().st_mtime_ns:
+                LocaleManager._compile_po_to_mo(str(source))
+
+    @staticmethod
     def _compile_po_to_mo(po_file: str):
         """编译 PO 文件为 MO 文件"""
         mo_file = po_file[:-3] + ".mo"

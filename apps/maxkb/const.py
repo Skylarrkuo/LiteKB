@@ -9,7 +9,6 @@ from .conf import ConfigManager
 __all__ = ['BASE_DIR', 'PROJECT_DIR', 'VERSION', 'CONFIG']
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOG_DIR = os.path.join('/', 'opt', 'maxkb', 'logs')
 PROJECT_DIR = os.path.dirname(BASE_DIR)
 VERSION = '2.0.0'
 
@@ -20,4 +19,8 @@ if os.getenv('MAXKB_CONFIG') is not None:
     CONFIG = ConfigManager.load_user_config(root_path=PROJECT_DIR)
 else:
     CONFIG = ConfigManager.load_user_config(root_path=os.path.abspath('/opt/maxkb/conf'))
+
+LOG_DIR = CONFIG.get('LOG_DIR') or (
+    os.path.join(PROJECT_DIR, 'data', 'logs') if os.name == 'nt' else '/opt/maxkb/logs'
+)
 

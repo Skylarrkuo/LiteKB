@@ -10,7 +10,7 @@ __all__ = ['CeleryDefaultService']
 class CeleryDefaultService(CeleryBaseService):
 
     def __init__(self, **kwargs):
-        kwargs['queue'] = 'celery'
+        kwargs['queue'] = 'celery,model'
         super().__init__(**kwargs)
 
     def open_subprocess(self):

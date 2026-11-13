@@ -14,7 +14,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'maxkb.settings')
 
 register_hmac_signed_serializer()
 
-app = Celery('MaxKB')
+app = Celery('LiteKB')
 
 
 @worker_init.connect

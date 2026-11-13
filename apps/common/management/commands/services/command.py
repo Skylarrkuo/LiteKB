@@ -4,6 +4,8 @@ import os
 from django.core.management.base import BaseCommand
 from django.db.models import TextChoices
 
+from maxkb.capabilities import LOCAL_MODEL
+
 from .utils import ServicesUtil
 
 
@@ -29,11 +31,11 @@ class Services(TextChoices):
 
     @classmethod
     def web_services(cls):
-        return [cls.gunicorn, cls.local_model]
+        return [cls.gunicorn, cls.local_model] if LOCAL_MODEL else [cls.gunicorn]
 
     @classmethod
     def celery_services(cls):
-        return [cls.celery_default, cls.celery_model]
+        return [cls.celery_default]
 
     @classmethod
     def task_services(cls):

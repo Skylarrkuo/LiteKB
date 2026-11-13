@@ -9,7 +9,6 @@
 from pathlib import Path
 from ...const import CONFIG, PROJECT_DIR
 import os
-from django.utils.translation import gettext_lazy as _
 from django.core.management.utils import get_random_secret_key
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -42,6 +41,7 @@ INSTALLED_APPS = [
     'models_provider',
     'django_celery_beat',
     'application',
+    'litekb_api',
     'chat',
     'oss',
     'trigger',
@@ -54,13 +54,13 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'common.middleware.gzip.GZipMiddleware',
-    'common.middleware.chat_headers_middleware.ChatHeadersMiddleware',
     'common.middleware.cross_domain_middleware.CrossDomainMiddleware',
     'common.middleware.doc_headers_middleware.DocHeadersMiddleware',
 
 ]
 
 REST_FRAMEWORK = {
+    "UNAUTHENTICATED_USER": None,
     'EXCEPTION_HANDLER': 'common.exception.handle_exception.handle_exception',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': ['common.auth.authenticate.AnonymousAuthentication']
@@ -73,7 +73,7 @@ APPS_DIR = os.path.join(PROJECT_DIR, 'apps')
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': ["apps/static/admin"],
+        'DIRS': [os.path.join(STATIC_ROOT, 'admin')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -84,22 +84,9 @@ TEMPLATES = [
             ],
         },
     },
-    {"NAME": "CHAT",
-     'BACKEND': 'django.template.backends.django.DjangoTemplates',
-     'DIRS': ["apps/static/chat"],
-     'APP_DIRS': True,
-     'OPTIONS': {
-         'context_processors': [
-             'django.template.context_processors.debug',
-             'django.template.context_processors.request',
-             'django.contrib.auth.context_processors.auth',
-             'django.contrib.messages.context_processors.messages',
-         ],
-     },
-     },
     {"NAME": "DOC",
      'BACKEND': 'django.template.backends.django.DjangoTemplates',
-     'DIRS': ["apps/static/drf_spectacular_sidecar"],
+     'DIRS': [os.path.join(STATIC_ROOT, 'drf_spectacular_sidecar')],
      'APP_DIRS': True,
      'OPTIONS': {
          'context_processors': [
@@ -112,8 +99,8 @@ TEMPLATES = [
      },
 ]
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'MaxKB API',
-    'DESCRIPTION': _('Intelligent customer service platform'),
+    'TITLE': 'LiteKB API',
+    'DESCRIPTION': 'RAG and workflow execution service',
     'VERSION': 'v2',
     'SERVE_INCLUDE_SCHEMA': False,
     # OTHER SETTINGS

@@ -1,30 +1,19 @@
-# coding=utf-8
-"""
-    @project: maxkb
-    @Author：虎
-    @file： tokenizer_manage_config.py
-    @date：2024/4/28 10:17
-    @desc:
-"""
+"""Fallback token counts for providers without model-specific usage metadata."""
+from functools import lru_cache
 
-import os
-
-class MKTokenizer:
-    def __init__(self, tokenizer):
-        self.tokenizer = tokenizer
-
-    def encode(self, text):
-        return self.tokenizer.encode(text).ids
+import tiktoken
 
 
 class TokenizerManage:
-    tokenizer = None
-
     @staticmethod
+    @lru_cache(maxsize=1)
     def get_tokenizer():
-        from tokenizers import Tokenizer
-        # 创建Tokenizer
-        model_path = os.path.join("/opt/maxkb-app", "model", "tokenizer", "models--bert-base-cased")
-        with open(f"{model_path}/refs/main", encoding="utf-8") as f: snapshot = f.read()
-        TokenizerManage.tokenizer = Tokenizer.from_file(f"{model_path}/snapshots/{snapshot}/tokenizer.json")
-        return MKTokenizer(TokenizerManage.tokenizer)
+        return _FallbackTokenizer(tiktoken.get_encoding("cl100k_base"))
+
+
+class _FallbackTokenizer:
+    def __init__(self, encoding):
+        self.encoding = encoding
+
+    def encode(self, text):
+        return self.encoding.encode_ordinary(text)

@@ -26,7 +26,7 @@ from common.constants.permission_constants import (
 from common.database_model_manage.database_model_manage import DatabaseModelManage
 from common.db.search import page_search
 from common.exception.app_exception import AppApiException
-from common.utils.common import get_random_chars, password_encrypt, password_verify, valid_license
+from common.utils.common import get_random_chars, password_encrypt, valid_license
 from common.utils.rsa_util import decrypt
 from django.core import validators
 from django.core.cache import cache
@@ -40,6 +40,7 @@ from django.utils.translation import gettext_lazy as _
 from maxkb import settings
 from maxkb.conf import PROJECT_DIR
 from maxkb.const import CONFIG
+from users.bootstrap import uses_initial_password
 from rest_framework import serializers
 from system_manage.models import AuthTargetType, SettingType, SystemSetting, WorkspaceUserResourcePermission
 from users.models import User
@@ -56,6 +57,13 @@ PASSWORD_REGEX = re.compile(
     r"[a-zA-Z0-9" + re.escape(PASSWORD_SPECIAL_CHARS) + r"]{6,20}"  # 长度6~20，允许全部合法字符
     r"$"  # 结束
 )
+
+def suggested_user_password():
+    while True:
+        candidate = secrets.token_urlsafe(15)
+        if PASSWORD_REGEX.fullmatch(candidate):
+            return candidate
+
 
 version, get_key = Cache_Version.SYSTEM.value
 
@@ -198,8 +206,7 @@ class UserProfileSerializer(serializers.Serializer):
             'source': user.source,
             'role': auth.role_list,
             'permissions': auth.permission_list,
-            'is_edit_password': password_verify(CONFIG.get('DEFAULT_PASSWORD', 'MaxKB@123..'),
-                                                user.password) if user.source == 'LOCAL' else False,
+            'is_edit_password': uses_initial_password(user),
             'language': user.language,
             'workspace_list': workspace_list,
             'role_name': role_name

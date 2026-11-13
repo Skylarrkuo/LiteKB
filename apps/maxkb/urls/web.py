@@ -15,25 +15,29 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 import os
+from html import escape
 from pathlib import Path
 
 from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import path, re_path, include
 from django.views import static
+from django.views.decorators.http import require_GET
 from rest_framework import status
 
 from chat.urls import urlpatterns as chat_urlpatterns
 from common.init.init_doc import init_doc
 from common.result import Result
 from maxkb import settings
-from maxkb.conf import PROJECT_DIR
 from maxkb.const import CONFIG
+from maxkb.health import ready
+from maxkb.capabilities import capabilities_view
 
 admin_api_prefix = CONFIG.get_admin_path()[1:] + '/api/'
 admin_ui_prefix = CONFIG.get_admin_path()
 chat_api_prefix = CONFIG.get_chat_path()[1:] + '/api/'
 chat_ui_prefix = CONFIG.get_chat_path()
 urlpatterns = [
+    path("health/ready", ready, name="ready"),
     path(admin_api_prefix, include("users.urls")),
     path(admin_api_prefix, include("tools.urls")),
     path(admin_api_prefix, include("models_provider.urls")),
@@ -41,15 +45,26 @@ urlpatterns = [
     path(admin_api_prefix, include("knowledge.urls")),
     path(admin_api_prefix, include("system_manage.urls")),
     path(admin_api_prefix, include("application.urls")),
-    path(admin_api_prefix, include("trigger.urls")),
+    path("v1/", include("litekb_api.urls")),
+    path(admin_api_prefix, include("litekb_api.admin_urls")),
+    path(admin_api_prefix + "capabilities", require_GET(capabilities_view)),
     path(admin_api_prefix, include("oss.urls", namespace="admin_oss")),
     path(admin_api_prefix, include("homepage.urls")),
     path(chat_api_prefix, include("oss.urls", namespace="chat_oss")),
     path(chat_api_prefix, include("chat.urls")),
     path(f'{admin_ui_prefix[1:]}/', include('oss.retrieval_urls', namespace='admin_oss_retrieval')),
-    path(f'{chat_ui_prefix[1:]}/', include('oss.retrieval_urls', namespace='chat_oss_retrieval')),
 ]
 init_doc(urlpatterns, chat_urlpatterns)
+
+
+def admin_index(request):
+    index_path = Path(settings.STATIC_ROOT) / 'admin' / 'index.html'
+    if not index_path.is_file():
+        return HttpResponse("页面不存在", status=404)
+    content = index_path.read_text(encoding='utf-8').replace(
+        'href="/admin/"', f'href="{escape(admin_ui_prefix.rstrip("/"))}/"'
+    ).replace('data-chat-prefix="/chat"', f'data-chat-prefix="{escape(chat_ui_prefix)}"')
+    return HttpResponse(content)
 
 
 def pro():
@@ -63,28 +78,19 @@ def pro():
                 {'document_root': os.path.join(settings.STATIC_ROOT, "drf_spectacular_sidecar")}, name='doc_chat'),
     )
     # 暴露ui静态资源
+    urlpatterns.extend([
+        path(f'{admin_ui_prefix[1:]}/', admin_index),
+        path(f'{admin_ui_prefix[1:]}/index.html', admin_index),
+    ])
     urlpatterns.append(
         re_path(rf"^{CONFIG.get_admin_path()[1:]}/(?P<path>.*)$", static.serve,
                 {'document_root': os.path.join(settings.STATIC_ROOT, "admin")},
                 name='admin'),
     )
-    # 暴露ui静态资源
-    urlpatterns.append(
-        re_path(rf'^{CONFIG.get_chat_path()[1:]}/(?P<path>.*)$', static.serve,
-                {'document_root': os.path.join(settings.STATIC_ROOT, "chat")},
-                name='chat'),
-    )
 
 
 if not settings.DEBUG:
     pro()
-
-
-def get_index_html(index_path):
-    file = open(index_path, "r", encoding='utf-8')
-    content = file.read()
-    file.close()
-    return content
 
 
 def get_all_files(directory):
@@ -98,8 +104,7 @@ def get_all_files(directory):
 
 
 static_dict = {
-    chat_ui_prefix: get_all_files(os.path.join(PROJECT_DIR, 'apps', "static", 'chat')),
-    admin_ui_prefix: get_all_files(os.path.join(PROJECT_DIR, 'apps', "static", 'admin'))
+    admin_ui_prefix: get_all_files(Path(settings.STATIC_ROOT) / 'admin')
 }
 
 
@@ -111,29 +116,14 @@ def page_not_found(request, exception):
         return Result(response_status=status.HTTP_404_NOT_FOUND, code=404, message="HTTP_404_NOT_FOUND")
     if request.path.startswith(chat_ui_prefix + '/api/'):
         return Result(response_status=status.HTTP_404_NOT_FOUND, code=404, message="HTTP_404_NOT_FOUND")
-    if request.path.startswith(chat_ui_prefix):
-        in_ = [url for url in static_dict.get(chat_ui_prefix) if request.path.endswith(url)]
-        if len(in_) > 0:
-            a = chat_ui_prefix + in_[0]
-            return HttpResponseRedirect(a)
-        index_path = os.path.join(PROJECT_DIR, 'apps', "static", 'chat', 'index.html')
-        content = get_index_html(index_path)
-        content = content.replace("prefix: '/chat'", f"prefix: '{CONFIG.get_chat_path()}'")
-        if not os.path.exists(index_path):
-            return HttpResponse("页面不存在", status=404)
-        return HttpResponse(content, status=200)
-    elif request.path.startswith(admin_ui_prefix):
+    if request.path.startswith('/v1/') or request.path == chat_ui_prefix or request.path.startswith(chat_ui_prefix + '/'):
+        return Result(response_status=status.HTTP_404_NOT_FOUND, code=404, message="HTTP_404_NOT_FOUND")
+    if request.path.startswith(admin_ui_prefix):
         in_ = [url for url in static_dict.get(admin_ui_prefix) if request.path.endswith(url)]
         if len(in_) > 0:
             a = admin_ui_prefix + in_[0]
             return HttpResponseRedirect(a)
-        index_path = os.path.join(PROJECT_DIR, 'apps', "static", 'admin', 'index.html')
-        if not os.path.exists(index_path):
-            return HttpResponse("页面不存在", status=404)
-        content = get_index_html(index_path)
-        content = content.replace("prefix: '/admin'", f"prefix: '{CONFIG.get_admin_path()}'").replace(
-            "chatPrefix: '/chat'", f"chatPrefix: '{CONFIG.get_chat_path()}'")
-        return HttpResponse(content, status=200)
+        return admin_index(request)
     else:
         return HttpResponseRedirect(admin_ui_prefix + '/')
 

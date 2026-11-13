@@ -186,6 +186,11 @@ class Workflow:
 
     @staticmethod
     def new_instance(flow_obj: Dict, workflow_mode: WorkflowMode = WorkflowMode.APPLICATION):
+        from maxkb.capabilities import disabled_workflow_node
+
+        disabled = disabled_workflow_node(flow_obj)
+        if disabled:
+            raise AppApiException(400, f"Node {disabled} is disabled in this LiteKB deployment")
         nodes = flow_obj.get('nodes')
         edges = flow_obj.get('edges')
         nodes = [Node(node.get('id'), node.get('type'), **node)

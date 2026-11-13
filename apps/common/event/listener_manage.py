@@ -8,7 +8,6 @@
 """
 
 import os
-import threading
 import traceback
 from typing import List
 
@@ -41,9 +40,6 @@ from common.utils.lock import RedisLock
 from common.utils.logger import maxkb_logger
 from common.utils.page_utils import page_desc
 from common.utils.ts_vecto_util import to_ts_vector
-
-lock = threading.Lock()
-
 
 class SyncWebKnowledgeArgs:
     def __init__(self, lock_key: str, url: str, selector: str, handler):
@@ -125,11 +121,11 @@ class ListenerManagement:
             # 删除段落
             VectorStore.get_embedding_vector().delete_by_paragraph_ids(paragraph_id_list)
 
-            def is_save_function():
-                return QuerySet(Paragraph).filter(id__in=paragraph_id_list).exists()
+            def is_the_task_interrupted():
+                return not QuerySet(Paragraph).filter(id__in=paragraph_id_list).exists()
 
             # 批量向量化
-            VectorStore.get_embedding_vector().batch_save(data_list, embedding_model, is_save_function)
+            VectorStore.get_embedding_vector().batch_save(data_list, embedding_model, is_the_task_interrupted)
             ListenerManagement.update_status(
                 QuerySet(Paragraph).filter(id__in=paragraph_id_list), TaskType.EMBEDDING, State.SUCCESS
             )
@@ -344,11 +340,9 @@ class ListenerManagement:
         for key in params_dict:
             _value_ = params_dict[key]
             exec_sql = exec_sql.replace(key, str(_value_))
-        lock.acquire()
-        try:
-            native_update(query_set, exec_sql)
-        finally:
-            lock.release()
+        # PostgreSQL serializes the row update. A process lock here can deadlock another transaction
+        # that holds a document row and needs to update its paragraphs before commit.
+        native_update(query_set, exec_sql)
 
     @staticmethod
     def embedding_by_document(document_id, embedding_model: Embeddings, state_list=None):

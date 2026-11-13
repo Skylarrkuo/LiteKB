@@ -13,8 +13,8 @@
                 "stepName": "基本資訊",
                 "node_data": {
                     "desc": "",
-                    "name": "maxkbapplication",
-                    "prologue": "您好，我是 MaxKB 小助手，您可以向我提出 MaxKB 使用問題。\n- MaxKB 主要功能有哪些？\n- MaxKB 支援哪些大型語言模型？\n- MaxKB 支援哪些文件類型？"
+                    "name": "LiteKB Agent",
+                    "prologue": "您好，我是 LiteKB 小助手，您可以向我提出 LiteKB 使用問題。\n- LiteKB 主要功能有哪些？\n- LiteKB 支援哪些大型語言模型？\n- LiteKB 支援哪些文件類型？"
                 },
                 "input_field_list": [
 

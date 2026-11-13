@@ -8,6 +8,7 @@
 """
 import os
 import subprocess
+import sys
 
 from django.core.management.base import BaseCommand
 
@@ -31,10 +32,10 @@ class Command(BaseCommand):
         if not server_hostname:
             server_hostname = '%h'
         cmd = [
-            'celery',
+            sys.executable, '-m', 'celery',
             '-A', 'ops',
             'worker',
-            '-P', 'threads',
+            '-P', 'solo' if os.name == 'nt' else 'threads',
             '-l', 'info',
             '-c', '10',
             '-Q', ','.join(service),
@@ -42,5 +43,4 @@ class Command(BaseCommand):
             '-n', f'{",".join(service)}@{server_hostname}',
             '--without-mingle',
         ]
-        kwargs = {'cwd': BASE_DIR}
-        subprocess.run(cmd, **kwargs)
+        subprocess.run(cmd, cwd=BASE_DIR, check=True)

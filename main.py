@@ -6,7 +6,7 @@ import time
 
 import django
 from django.core import management
-from django.core.management.utils import get_random_secret_key
+from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE_DIR, 'apps')
@@ -23,11 +23,11 @@ def collect_static():
     :return:
     """
     logging.info("Collect static files")
-    try:
-        management.call_command('collectstatic', '--no-input', '-c', verbosity=0, interactive=False)
-        logging.info("Collect static files done")
-    except:
-        pass
+    if os.name == "nt":
+        from common.locale.manager import LocaleManager
+        LocaleManager.compile_builtin_catalogs(os.path.join(APP_DIR, "locales"))
+    management.call_command('collectstatic', verbosity=0, interactive=False)
+    logging.info("Collect static files done")
 
 
 def perform_db_migrate():
@@ -90,9 +90,10 @@ def start_services():
 def dev():
     services = args.services if isinstance(args.services, list) else args.services
     if services.__contains__('web'):
-        management.call_command('runserver', "0.0.0.0:8080")
+        bind = os.environ.get('LITEKB_DEV_BIND', '127.0.0.1:8080' if os.name == 'nt' else '0.0.0.0:8080')
+        management.call_command('runserver', bind)
     elif services.__contains__('celery'):
-        management.call_command('celery', 'celery')
+        management.call_command('celery', 'celery', 'model')
     elif services.__contains__('local_model'):
         from maxkb.const import CONFIG
         bind = f'{CONFIG.get("LOCAL_MODEL_HOST")}:{CONFIG.get("LOCAL_MODEL_PORT")}'
@@ -100,10 +101,10 @@ def dev():
 
 
 if __name__ == '__main__':
-    os.environ['HF_HOME'] = '/opt/maxkb-app/model/base'
-    os.environ['TMPDIR'] = '/opt/maxkb-app/tmp'
-    if not os.environ.get('MAXKB_SECRET_KEY'):
-        os.environ['MAXKB_SECRET_KEY'] = get_random_secret_key()
+    load_dotenv(os.path.join(BASE_DIR, '.env'))
+    os.environ.setdefault('HF_HOME', os.path.join(BASE_DIR, 'model', 'base'))
+    if os.path.isdir(os.path.join(BASE_DIR, 'tmp')):
+        os.environ.setdefault('TMPDIR', os.path.join(BASE_DIR, 'tmp'))
     parser = argparse.ArgumentParser(
         description="""
            qabot service control tools;
@@ -141,8 +142,9 @@ if __name__ == '__main__':
     elif action == "collect_static":
         collect_static()
     elif action == 'dev':
-        collect_static()
-        perform_db_migrate()
+        if 'web' in services:
+            collect_static()
+            perform_db_migrate()
         dev()
     else:
         collect_static()
