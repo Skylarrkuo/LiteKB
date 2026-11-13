@@ -43,6 +43,7 @@
   </DynamicsForm>
 </template>
 <script setup lang="ts">
+import { nodeEnabled } from '@/workflow/capabilities'
 import { computed, ref, watch, provide } from 'vue'
 import { WorkflowKind, WorkflowType } from '@/enums/application'
 import DynamicsForm from '@/components/dynamics-form/index.vue'
@@ -98,7 +99,7 @@ const form_data = computed({
   },
 })
 const source_node_list = computed(() => {
-  return props.workflow?.nodes?.filter((n: any) => n.properties.kind === WorkflowKind.DataSource)
+  return props.workflow?.nodes?.filter((n: any) => nodeEnabled(n.type) && n.properties.kind === WorkflowKind.DataSource)
 })
 const extra = ref<any>({
   current_tool_id: undefined,

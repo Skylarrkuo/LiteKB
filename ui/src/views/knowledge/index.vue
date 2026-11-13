@@ -1,35 +1,32 @@
 <template>
-  <LayoutContainer showCollapse resizable class="knowledge-manage">
+  <LayoutContainer showCollapse resizable class="knowledge-manage" :navigation-label="$t('views.knowledge.title')">
     <template #left>
-      <h4 class="p-12-16 pb-0 mt-12">{{ $t('views.knowledge.title') }}</h4>
+      <h4 class="folder-title">
+        <el-icon aria-hidden="true"><FolderOpened /></el-icon>{{ $t('views.knowledge.title') }}
+      </h4>
 
       <FolderVirtualizedTree
         :source="SourceTypeEnum.KNOWLEDGE"
         :data="folderList"
         :currentNodeKey="folder.currentFolder?.id"
         @handleNodeClick="folderClickHandle"
-        :shareTitle="$t('views.shared.shared_knowledge')"
-        :showShared="permissionPrecise['is_share']()"
+        :showShared="false"
         @refreshTree="refreshFolder"
         :draggable="true"
       />
     </template>
     <KnowledgeListContainer @refreshFolder="refreshFolder">
       <template #header>
-        <h2 v-if="folder.currentFolder?.id === 'share'">
-          {{ $t('views.shared.shared_knowledge') }}
-        </h2>
-        <FolderBreadcrumb :folderList="folderList" @click="folderClickHandle" v-else />
+        <FolderBreadcrumb :folderList="folderList" @click="folderClickHandle" />
       </template>
     </KnowledgeListContainer>
   </LayoutContainer>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, reactive, shallowRef, nextTick, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import KnowledgeListContainer from '@/views/knowledge/component/KnowledgeListContainer.vue'
 import { SourceTypeEnum } from '@/enums/common'
-import permissionMap from '@/permission'
 import { useRoute } from 'vue-router'
 import useStore from '@/stores'
 const route = useRoute()
@@ -42,9 +39,6 @@ const apiType = computed(() => {
   } else {
     return 'workspace'
   }
-})
-const permissionPrecise = computed(() => {
-  return permissionMap['knowledge'][apiType.value]
 })
 const loading = ref(false)
 
@@ -80,4 +74,22 @@ onMounted(() => {
 })
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.folder-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 16px 0;
+  color: var(--studio-ink);
+  font-weight: 650;
+}
+.knowledge-manage :deep(.tree-node:has(.maxkb-tree-node.is-current)) {
+  color: var(--studio-ink);
+  background: var(--studio-selection);
+  box-shadow: inset 3px 0 var(--studio-ink);
+}
+@media (max-width: 760px) {
+  .folder-title { display: none; }
+  .knowledge-manage :deep(.folder-tree__main) { max-height: 24dvh; }
+}
+</style>

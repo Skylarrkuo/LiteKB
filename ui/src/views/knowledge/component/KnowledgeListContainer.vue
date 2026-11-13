@@ -1,10 +1,10 @@
 <template>
-  <ContentContainer>
+  <ContentContainer class="knowledge-library">
     <template #header>
       <slot name="header"></slot>
     </template>
     <template #search>
-      <div class="flex">
+      <div class="library-controls">
         <div class="complex-search">
           <el-select
             class="complex-search__left"
@@ -51,14 +51,6 @@
           </el-button>
         </span>
         <div v-if="isBatch === false">
-          <el-button
-            class="ml-8"
-            v-if="!isShared && permissionPrecise.create()"
-            @click="openTemplateStoreDialog()"
-          >
-            <AppIcon iconName="app-template-center" class="mr-4" />
-            {{ $t('workflow.setting.templateCenter') }}
-          </el-button>
           <el-dropdown trigger="click" v-if="!isShared && permissionPrecise.create()">
             <el-button type="primary" class="ml-8">
               {{ $t('common.create') }}
@@ -79,21 +71,6 @@
                       </div>
                       <el-text type="info" size="small" class="color-secondary"
                         >{{ $t('views.knowledge.knowledgeType.generalInfo') }}
-                      </el-text>
-                    </div>
-                  </div>
-                </el-dropdown-item>
-                <el-dropdown-item @click="openCreateDialog(CreateWebKnowledgeDialog)">
-                  <div class="flex">
-                    <el-avatar class="avatar-purple mt-4" shape="square" :size="32">
-                      <img src="@/assets/knowledge/icon_web.svg" style="width: 58%" alt="" />
-                    </el-avatar>
-                    <div class="pre-wrap ml-8">
-                      <div class="lighter">
-                        {{ $t('views.knowledge.knowledgeType.webKnowledge') }}
-                      </div>
-                      <el-text type="info" size="small" class="color-secondary"
-                        >{{ $t('views.knowledge.knowledgeType.webInfo') }}
                       </el-text>
                     </div>
                   </div>
@@ -178,7 +155,7 @@
 
     <div
       v-loading.fullscreen.lock="paginationConfig.current_page === 1 && loading"
-      style="max-height: calc(100vh - 120px)"
+      class="library-results"
     >
       <InfiniteScroll
         :size="knowledge.knowledgeList.length"
@@ -189,13 +166,13 @@
         :loading="loading"
       >
         <el-checkbox-group v-model="multipleSelection" @change="handleCheckedChatChange">
-          <el-row v-if="knowledge.knowledgeList.length > 0" :gutter="15" class="w-full">
-            <template v-for="(item, index) in knowledge.knowledgeList" :key="index">
-              <el-col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" class="mb-16">
+          <div v-if="knowledge.knowledgeList.length > 0" class="library-grid">
+            <template v-for="item in knowledge.knowledgeList" :key="item.id">
                 <CardBox
                   :title="item.name"
                   :description="item.desc"
-                  class="cursor"
+                  class="library-card cursor"
+                  always-show-actions
                   @click="toDocument(item)"
                   :disabled="isBatch"
                   :class="{
@@ -219,7 +196,7 @@
                     </el-text>
                   </template>
                   <template #tag>
-                    <el-checkbox :value="item.id" v-if="isBatch" @change="checkboxChange(item)" />
+                    <el-checkbox :value="item.id" v-if="isBatch" :aria-label="item.name" @click.stop />
                     <div v-else>
                       <el-tag
                         v-if="isShared || isSystemShare"
@@ -247,19 +224,11 @@
                   <template #mouseEnter>
                     <div @click.stop v-if="!isShared">
                       <el-dropdown trigger="click">
-                        <el-button text @click.stop v-if="MoreFilledPermission(item)">
+                        <el-button text @click.stop :aria-label="$t('common.operation')" v-if="MoreFilledPermission(item)">
                           <AppIcon iconName="app-more" class="color-secondary"></AppIcon>
                         </el-button>
                         <template #dropdown>
                           <el-dropdown-menu>
-                            <el-dropdown-item
-                              @click.stop="syncKnowledge(item)"
-                              v-if="item.type === 1 && permissionPrecise.sync(item.id)"
-                            >
-                              <AppIcon iconName="app-sync" class="color-secondary"></AppIcon>
-
-                              {{ $t('views.knowledge.setting.sync') }}
-                            </el-dropdown-item>
                             <el-dropdown-item
                               @click.stop="reEmbeddingKnowledge(item)"
                               v-if="permissionPrecise.vector(item.id)"
@@ -368,10 +337,15 @@
                     </div>
                   </template>
                 </CardBox>
-              </el-col>
             </template>
-          </el-row>
-          <el-empty :description="$t('common.noData')" v-else />
+          </div>
+          <el-empty :description="$t('common.noData')" v-else-if="!loading" class="library-empty">
+            <template #image><el-icon aria-hidden="true"><Collection /></el-icon></template>
+            <el-button v-if="!isShared && !isBatch && !search_form[search_type] && permissionPrecise.create()"
+              type="primary" @click="openCreateDialog(CreateKnowledgeDialog)">
+              {{ $t('views.knowledge.knowledgeType.createGeneralKnowledge') }}
+            </el-button>
+          </el-empty>
         </el-checkbox-group>
       </InfiniteScroll>
     </div>
@@ -414,7 +388,6 @@
   <component :is="currentCreateDialog" ref="CreateKnowledgeDialogRef" v-if="!isShared" />
   <CreateFolderDialog ref="CreateFolderDialogRef" v-if="!isShared" @refresh="refreshFolder" />
   <GenerateRelatedDialog ref="GenerateRelatedDialogRef" :apiType="apiType" />
-  <SyncWebDialog ref="SyncWebDialogRef" v-if="!isShared" />
   <AuthorizedWorkspace
     ref="AuthorizedWorkspaceDialogRef"
     v-if="isSystemShare"
@@ -430,7 +403,7 @@
     ref="ResourceAuthorizationDrawerRef"
     v-if="apiType === 'workspace'"
   />
-  <TemplateStoreDialog ref="templateStoreDialogRef" :api-type="apiType" @refresh="getList" />
+
   <ResourceMappingDrawer ref="resourceMappingDrawerRef"></ResourceMappingDrawer>
   <ExportKnowledgeDialog ref="exportKnowledgeDialogRef" />
 </template>
@@ -441,16 +414,13 @@ import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
 import { cloneDeep, get } from 'lodash'
 import type { CheckboxValueType } from 'element-plus'
 import CreateKnowledgeDialog from '@/views/knowledge/create-component/CreateKnowledgeDialog.vue'
-import CreateWebKnowledgeDialog from '@/views/knowledge/create-component/CreateWebKnowledgeDialog.vue'
 import CreateLarkKnowledgeDialog from '@/views/knowledge/create-component/CreateLarkKnowledgeDialog.vue'
 import CreateWorkflowKnowledgeDialog from '@/views/knowledge/create-component/CreateWorkflowKnowledgeDialog.vue'
-import SyncWebDialog from '@/views/knowledge/component/SyncWebDialog.vue'
 import CreateFolderDialog from '@/components/folder-virtualized-tree/CreateFolderDialog.vue'
 import MoveToDialog from '@/components/folder-virtualized-tree/MoveToDialog.vue'
 import GenerateRelatedDialog from '@/components/generate-related-dialog/index.vue'
 import AuthorizedWorkspace from '@/views/system-shared/AuthorizedWorkspaceDialog.vue'
 import ResourceAuthorizationDrawer from '@/components/resource-authorization-drawer/index.vue'
-import TemplateStoreDialog from '@/views/knowledge/template-store/TemplateStoreDialog.vue'
 import ResourceMappingDrawer from '@/components/resource_mapping/index.vue'
 import { MsgSuccess, MsgConfirm } from '@/utils/message'
 import { numberFormat, i18n_name } from '@/utils/common'
@@ -499,7 +469,6 @@ const isSystemShare = computed(() => {
 
 const MoreFilledPermission = (item: any) => {
   return (
-    (item.type === 1 && permissionPrecise.value.sync(item.id)) ||
     permissionPrecise.value.vector(item.id) ||
     permissionPrecise.value.generate(item.id) ||
     (permissionPrecise.value.edit(item.id) && apiType.value) === 'workspace' ||
@@ -557,16 +526,6 @@ const handleCheckAllChange = (val: CheckboxValueType) => {
 const handleCheckedChatChange = (value: CheckboxValueType[]) => {
   const checkedCount = value.length
   checkAll.value = checkedCount === knowledge.knowledgeList.length
-}
-
-const checkboxChange = (data?: any) => {
-  const index = multipleSelection.value.indexOf(data?.id)
-  if (index === -1) {
-    multipleSelection.value.push(data?.id)
-  } else {
-    multipleSelection.value.splice(index, 1)
-  }
-  checkAll.value = multipleSelection.value.length === knowledge.knowledgeList.length
 }
 
 function deleteMulKnowledge() {
@@ -669,11 +628,8 @@ function reEmbeddingKnowledge(row: any) {
     })
 }
 
-const SyncWebDialogRef = ref()
 
-function syncKnowledge(row: any) {
-  SyncWebDialogRef.value.open(row.id)
-}
+
 
 const search_type_change = () => {
   search_form.value = { name: '', create_user: '' }
@@ -714,16 +670,7 @@ function importKnowledgeBundle(file: any) {
         })
       }
     })
-    .catch((e: any) => {
-      if (e.code === 400) {
-        MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-          cancelButtonText: t('common.confirm'),
-          confirmButtonText: t('common.professional'),
-        }).then(() => {
-          window.open('https://maxkb.cn/pricing.html', '_blank')
-        })
-      }
-    })
+    .catch(() => {})
 }
 
 const GenerateRelatedDialogRef = ref<InstanceType<typeof GenerateRelatedDialog>>()
@@ -829,11 +776,6 @@ function refreshFolder() {
   emit('refreshFolder')
 }
 
-const templateStoreDialogRef = ref()
-
-function openTemplateStoreDialog() {
-  templateStoreDialogRef.value?.open(folder.currentFolder.id)
-}
 
 function getUserList(query: string) {
   let workspaceId = user.getWorkspaceId()
@@ -860,4 +802,71 @@ onMounted(() => {
 })
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.library-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  > .ml-8, :deep(.el-button.ml-8) { margin-left: 0; }
+  .complex-search { display: flex; max-width: 100%; }
+}
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr));
+  gap: 16px;
+  padding: 3px;
+}
+.library-card {
+  --card-min-width: 0;
+  min-height: 164px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-large);
+  box-shadow: var(--studio-shadow);
+  &:hover, &:focus-visible, &.border-active { border-color: var(--studio-ink); }
+  :deep(.avatar-blue) { background: var(--studio-ink); }
+  :deep(.card-footer) {
+    padding: 7px 14px;
+    bottom: 0;
+    min-height: 41px;
+    border-top: 1px solid var(--studio-hairline);
+    background: var(--app-layout-bg-color);
+    font-size: 12px;
+  }
+  :deep(.card-labels .ellipsis-1) { color: var(--studio-ink); font-weight: 650; }
+}
+.library-empty {
+  min-height: min(45vh, 360px);
+  border: 1px dashed var(--studio-hairline);
+  border-radius: var(--app-border-radius-large);
+  background: var(--app-view-bg-color);
+  :deep(.el-empty__image) {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--app-border-radius-large);
+    background: var(--studio-selection);
+    color: var(--studio-ink);
+    .el-icon { font-size: 27px; }
+  }
+}
+.knowledge-library .mul-operation {
+  position: sticky;
+  width: 100%;
+  margin: 10px 0 0;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-base);
+  box-shadow: var(--studio-shadow);
+  > * { margin: 0; }
+}
+@media (max-width: 760px) {
+  .library-controls { width: 100%; }
+  .library-controls .complex-search { flex: 1 1 210px; }
+  .library-grid { gap: 10px; }
+}
+</style>

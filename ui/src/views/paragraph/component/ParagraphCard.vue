@@ -3,23 +3,22 @@
     shadow="hover"
     class="paragraph-box cursor"
     :class="data.is_active ? '' : 'disabled'"
-    @mouseenter="cardEnter()"
-    @mouseleave="cardLeave()"
+    :tabindex="cardClick ? 0 : undefined"
+    @keydown.enter.self.prevent="handleClickCard(data)"
     @click.stop="handleClickCard(data)"
     v-loading="loading"
   >
-    <div v-show="show" class="mk-sticky" v-if="!disabled">
+    <div class="paragraph-actions" v-if="!disabled && MoreFieldPermission(id)">
       <el-card
-        class="paragraph-box-operation mt-8 mr-8"
-        shadow="always"
-        style="--el-card-padding: 8px 12px; --el-card-border-radius: 8px"
+        class="paragraph-box-operation"
+        shadow="never"
         @click.stop
-        v-if="MoreFieldPermission(id)"
       >
         <el-switch
           :loading="changeStateloading"
-          v-model="data.is_active"
-          :before-change="() => changeState(data)"
+          :model-value="data.is_active"
+          :aria-label="data.title || $t('views.paragraph.title')"
+          @update:model-value="changeState(data, Boolean($event))"
           size="small"
           v-if="permissionPrecise.doc_edit(id)"
         />
@@ -32,7 +31,7 @@
             placement="top"
             v-if="permissionPrecise.doc_edit(id)"
           >
-            <el-button text @click.stop="editParagraph(data)">
+            <el-button text :aria-label="$t('views.paragraph.editParagraph')" @click.stop="editParagraph(data)">
               <AppIcon iconName="app-edit" :size="16" class="color-secondary"></AppIcon>
             </el-button>
           </el-tooltip>
@@ -44,7 +43,7 @@
             placement="top"
             v-if="permissionPrecise.doc_edit(id)"
           >
-            <el-button text @click.stop="addParagraph(data)" v-if="permissionPrecise.doc_edit(id)">
+            <el-button text :aria-label="$t('views.paragraph.prevAddParagraph')" @click.stop="addParagraph(data)" v-if="permissionPrecise.doc_edit(id)">
               <AppIcon
                 iconName="app-add-circle-outlined"
                 class="color-secondary"
@@ -54,7 +53,7 @@
           </el-tooltip>
         </span>
         <el-dropdown trigger="click" :teleported="false" v-if="MoreFieldPermission(id)">
-          <el-button text>
+          <el-button text :aria-label="$t('common.operation')">
             <AppIcon iconName="app-more" class="color-secondary"></AppIcon>
           </el-button>
           <template #dropdown>
@@ -132,10 +131,10 @@
         </el-dropdown>
       </el-card>
     </div>
-    <h2 class="mb-16">{{ data.title || '-' }}</h2>
+    <h3 class="paragraph-title">{{ data.title || '-' }}</h3>
     <MdPreview
       ref="editorRef"
-      editorId="preview-only"
+      :editorId="`paragraph-preview-${data.id}`"
       :modelValue="data.content"
       class="maxkb-md"
       style="background: none"
@@ -206,31 +205,12 @@ const emit = defineEmits([
 ])
 const loading = ref(false)
 const changeStateloading = ref(false)
-const show = ref(false)
-// card上面存在dropdown菜单
-const subHovered = ref(false)
-function cardEnter() {
-  show.value = true
-  subHovered.value = false
-}
-
-function cardLeave() {
-  show.value = subHovered.value
-}
-
-async function changeState(row: any) {
-  const obj = {
-    is_active: !row.is_active,
-  }
+async function changeState(row: any, active: boolean) {
+  if (changeStateloading.value) return
   await loadSharedApi({ type: 'paragraph', systemType: apiType.value })
-    .putParagraph(id, documentId, row.id, obj, changeStateloading)
-    .then(() => {
-      emit('changeState', row.id)
-      return true
-    })
-    .catch(() => {
-      return false
-    })
+    .putParagraph(id, documentId, row.id, { is_active: active }, changeStateloading)
+    .then(() => emit('changeState', row.id, active))
+    .catch(() => {})
 }
 
 const GenerateRelatedDialogRef = ref<InstanceType<typeof GenerateRelatedDialog>>()
@@ -313,42 +293,38 @@ watch(dialogVisible, (val: boolean) => {
 </script>
 <style lang="scss" scoped>
 .paragraph-box {
-  background: var(--app-layout-bg-color);
-  border: 1px solid #ffffff;
-  box-shadow: none !important;
+  min-width: 0;
   position: relative;
-  overflow: inherit;
-  &:hover {
-    background: rgba(var(--el-text-color-primary-rgb), 0.1);
-    border: 1px solid #dee0e3;
-  }
-  &.disabled {
-    color: var(--app-text-color-disable) !important;
-    :deep(.md-editor-preview) {
-      color: var(--app-text-color-disable) !important;
-    }
-    &:hover {
-      background: var(--app-layout-bg-color);
-      border: 1px solid #ffffff;
-    }
-  }
-  .paragraph-box-operation {
-    position: absolute;
-    right: -10px;
-    top: -10px;
-    overflow: inherit;
-    border: 1px solid #dee0e3;
-    z-index: 10;
-  }
-
-  .mk-sticky {
-    height: 0;
-    position: sticky;
-    right: 0;
-    top: 0;
-    overflow: inherit;
-    z-index: 10;
-  }
+  overflow: visible;
+  border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-base);
+  box-shadow: none;
+  --el-card-padding: clamp(12px, 1.6vw, 20px);
+  &:hover, &:focus-within { border-color: var(--studio-ink); box-shadow: var(--studio-shadow); }
+  &.disabled { color: var(--app-text-color-secondary); background: var(--app-layout-bg-color); }
+  :deep(.maxkb-md) { clear: both; }
+}
+.paragraph-title {
+  min-height: 28px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--studio-ink);
+  overflow-wrap: anywhere;
+  margin-bottom: 9px;
+}
+.paragraph-actions { float: right; margin: -3px 0 6px 10px; }
+.paragraph-box-operation {
+  --el-card-padding: 2px 5px;
+  border: 0;
+  background: var(--app-layout-bg-color);
+  border-radius: var(--app-border-radius-small);
+  overflow: visible;
+  :deep(> .el-card__body) { display: flex; align-items: center; }
+  :deep(.el-button) { padding: 4px; height: 26px; }
+  .mr-8 { margin-right: 3px; }
+}
+@media (max-width: 600px) {
+  .paragraph-actions { float: none; display: flex; justify-content: flex-end; margin: 0 0 8px; }
 }
 </style>
 

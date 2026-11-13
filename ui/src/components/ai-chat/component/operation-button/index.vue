@@ -7,7 +7,7 @@
       v-bind:data="chatRecord"
       @update:data="(event: any) => emit('update:chatRecord', event)"
       :applicationId="application.id"
-      :tts="application.tts_model_enable"
+      :tts="mediaEnabled && application.tts_model_enable"
       :tts_type="application.tts_type"
       :type="type"
     />
@@ -27,7 +27,7 @@
 
     <ChatOperationButton
       v-show="chatRecord.write_ed && 500 != chatRecord.status"
-      :tts="application.tts_model_enable"
+      :tts="mediaEnabled && application.tts_model_enable"
       :tts_type="application.tts_type"
       :tts_autoplay="application.tts_autoplay"
       :data="chatRecord"
@@ -41,6 +41,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { mediaEnabled } from '@/workflow/capabilities'
 import ChatOperationButton from '@/components/ai-chat/component/operation-button/ChatOperationButton.vue'
 import LogOperationButton from '@/components/ai-chat/component/operation-button/LogOperationButton.vue'
 import ShareOperationButton from '@/components/ai-chat/component/operation-button/ShareOperationButton.vue'

@@ -6,6 +6,7 @@ import { WorkflowType } from '@/enums/application'
 import { t } from '@/locales'
 import { copyClick } from '@/utils/clipboard'
 import { randomId } from '@/utils/common'
+import { disabledGraphNodes } from '@/workflow/capabilities'
 import { getMenuNodes, workflowModelDict } from './data'
 let activeCanvasId: string | null = null
 type Point = { x: number; y: number }
@@ -210,6 +211,11 @@ export function initDefaultShortcut(lf: LogicFlow, graph: GraphModel) {
     if (graph.textEditElement) return true
     const text = e.clipboardData?.getData('text/plain') || ''
     const data = parseAndValidate(text)
+    const unavailable = disabledGraphNodes(data)
+    if (unavailable.length) {
+      MsgError(t('studio.unavailableNodes') + ' · ' + unavailable.join(', '))
+      return true
+    }
     selected = resetData(data)
     const workflowMode = lf.graphModel.get_provide(null, null).workflowMode
     const menus = getMenuNodes(workflowMode)

@@ -136,17 +136,6 @@
             </el-button>
           </el-tooltip>
         </span>
-        <span class="ml-8" v-if="props.application.show_share">
-          <el-tooltip effect="dark" :content="$t('aiChat.share')" placement="top">
-            <el-button
-              text
-              @click.stop="clickShareHandle(props.data.record_id)"
-              :disabled="chat_loading"
-            >
-              <AppIcon class="color-secondary" iconName="app-share"></AppIcon>
-            </el-button>
-          </el-tooltip>
-        </span>
       </span>
       <div ref="audioCiontainer"></div>
     </div>
@@ -196,9 +185,7 @@ const props = withDefaults(
 
 const emit = defineEmits(['update:data', 'regeneration', 'clickShare'])
 
-const clickShareHandle = (id: string) => {
-  bus.emit('click:share', id)
-}
+
 
 const copy = (data: any) => {
   try {

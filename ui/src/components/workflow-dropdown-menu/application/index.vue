@@ -13,6 +13,8 @@
         <el-input
           v-model="search_text"
           class="mr-12 ml-12"
+          :aria-label="$t('common.search')"
+          clearable
           :placeholder="$t('common.searchBar.placeholder')"
         >
           <template #suffix>
@@ -24,7 +26,7 @@
       </div>
 
       <el-tab-pane :label="$t('workflow.baseComponent')" name="base">
-        <el-scrollbar height="400">
+        <el-scrollbar max-height="min(400px, 50dvh)">
           <div v-if="filter_menu_nodes.length > 0">
             <template v-for="(node, index) in filter_menu_nodes" :key="index">
               <el-text type="info" size="small" class="color-secondary ml-12">{{
@@ -34,11 +36,13 @@
                 <template v-for="(item, index) in node.list" :key="index">
                   <el-popover placement="right" :width="280" :show-after="500" :persistent="false">
                     <template #reference>
-                      <div
+                      <button
+                        type="button"
                         class="list-item flex align-center border border-r-6 p-8-12 cursor"
                         style="width: calc(50% - 6px)"
                         @click.stop="clickNodes(item)"
-                        @mousedown.stop="onmousedown(item)"
+                        @pointerdown.stop="beginNodeGesture($event, () => onmousedown(item))"
+                        @dragstart.prevent
                       >
                         <component
                           :is="iconComponent(`${item.type}-icon`)"
@@ -46,8 +50,8 @@
                           :size="20"
                           style="--el-avatar-border-radius:6px"
                         />
-                        <div class="lighter">{{ item.label }}</div>
-                      </div>
+                        <span>{{ item.label }}</span>
+                      </button>
                     </template>
                     <template #default>
                       <div class="flex align-center mb-8">
@@ -74,7 +78,7 @@
       </el-tab-pane>
       <!-- 工具 -->
       <el-tab-pane :label="$t('views.tool.title')" name="tool">
-        <LayoutContainer>
+        <LayoutContainer showCollapse :navigation-label="$t('studio.sidebar')">
           <template #left>
             <FolderVirtualizedTree
               :source="SourceTypeEnum.TOOL"
@@ -87,7 +91,7 @@
               :treeStyle="{ height: '400px' }"
             />
           </template>
-          <el-scrollbar height="450">
+          <el-scrollbar max-height="min(450px, 52dvh)">
             <NodeContent
               :list="toolList"
               @clickNodes="
@@ -112,7 +116,7 @@
       </el-tab-pane>
       <!-- 应用 -->
       <el-tab-pane :label="$t('views.application.title')" name="application">
-        <LayoutContainer>
+        <LayoutContainer showCollapse :navigation-label="$t('studio.sidebar')">
           <template #left>
             <FolderVirtualizedTree
               :source="SourceTypeEnum.APPLICATION"
@@ -123,7 +127,7 @@
               :treeStyle="{ height: '400px' }"
             />
           </template>
-          <el-scrollbar height="450">
+          <el-scrollbar max-height="min(450px, 52dvh)">
             <NodeContent
               :list="applicationList"
               @clickNodes="(val: any) => clickNodes(applicationNode, val, 'application')"
@@ -136,7 +140,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, computed, inject } from 'vue'
+import { ref, computed, inject } from 'vue'
 import {
   getMenuNodes,
   toolLibNode,
@@ -145,9 +149,10 @@ import {
 } from '@/workflow/common/data'
 import { iconComponent } from '@/workflow/icons/utils'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
-import { isWorkFlow } from '@/utils/application'
+import { cloneDeep } from 'lodash'
 import useStore from '@/stores'
 import NodeContent from './NodeContent.vue'
+import { beginNodeGesture } from './drag'
 import { SourceTypeEnum } from '@/enums/common'
 import permissionMap from '@/permission'
 import { useRoute } from 'vue-router'
@@ -205,64 +210,35 @@ const filter_menu_nodes = computed(() => {
     return result
   }, [])
 })
-function clickNodes(item: any, data?: any, type?: string) {
-  if (data) {
-    item['properties']['stepName'] = data.name
-    if (type == 'tool') {
-      item['properties']['node_data'] = {
-        ...data,
-        tool_lib_id: data.id,
-        input_field_list: data.input_field_list.map((field: any) => ({
-          ...field,
-          value: field.source == 'reference' ? [] : '',
-        })),
-      }
+function makeNode(template: any, data?: any, type?: string) {
+  const item = cloneDeep(template)
+  if (!data) return item
+  item.properties.stepName = data.name
+  if (type === 'tool') {
+    item.properties.node_data = {
+      ...data,
+      tool_lib_id: data.id,
+      input_field_list: data.input_field_list.map((field: any) => ({
+        ...field,
+        value: field.source === 'reference' ? [] : '',
+      })),
     }
-    if (type == 'application') {
-      item['properties']['node_data'] = {
-        name: data.name,
-        icon: data.icon,
-        application_id: data.id,
-      }
-    }
+  } else if (type === 'application') {
+    item.properties.node_data = { name: data.name, icon: data.icon, application_id: data.id }
   }
-  props.workflowRef?.addNode(item)
+  return item
+}
 
+function clickNodes(template: any, data?: any, type?: string) {
+  const item = makeNode(template, data, type)
+  props.workflowRef?.addNode(item)
   emit('clickNodes', item)
 }
 
-function onmousedown(item: any, data?: any, type?: string) {
-  if (data) {
-    item['properties']['stepName'] = data.name
-    if (type == 'tool') {
-      item['properties']['node_data'] = {
-        ...data,
-        tool_lib_id: data.id,
-        input_field_list: data.input_field_list.map((field: any) => ({
-          ...field,
-          value: field.source == 'reference' ? [] : '',
-        })),
-      }
-    }
-    if (type == 'application') {
-      if (isWorkFlow(data.type)) {
-        const nodeData = data.work_flow.nodes[0].properties.node_data
-        const fileUploadSetting = nodeData.file_upload_setting
-        item['properties']['node_data'] = {
-          name: data.name,
-          icon: data.icon,
-          application_id: data.id,
-        }
-      } else {
-        item['properties']['node_data'] = {
-          name: data.name,
-          icon: data.icon,
-          application_id: data.id,
-        }
-      }
-    }
-  }
-  props.workflowRef?.onmousedown(item)
+function onmousedown(template: any, data?: any, type?: string) {
+  if (!props.workflowRef) return
+  const item = makeNode(template, data, type)
+  props.workflowRef.onmousedown(item)
   emit('onmousedown', item)
 }
 
@@ -302,7 +278,7 @@ const applicationTreeData = ref<any[]>([])
 const applicationList = ref<any[]>([])
 
 function getApplicationFolder() {
-  folder
+  return folder
     .asyncGetFolder(SourceTypeEnum.APPLICATION, { source_id: props.id }, apiType.value, loading)
     .then((res: any) => {
       applicationTreeData.value = res.data
@@ -336,11 +312,28 @@ async function handleClick(val: string) {
     await getToolFolder()
     getToolList()
   } else if (val === 'application') {
-    getApplicationFolder()
+    await getApplicationFolder()
     getApplicationList()
   }
 }
 
-onMounted(() => {})
+
 </script>
-<style lang="scss" scoped></style>
+<style scoped>
+.workflow-dropdown-menu { max-width: calc(100vw - 24px); }
+.workflow-dropdown-menu :deep(button.list-item) {
+  display: flex;
+  min-height: 38px;
+  min-width: 0;
+  border-radius: 10px;
+  background: var(--app-view-bg-color);
+  color: var(--el-text-color-primary);
+  font: inherit;
+  text-align: start;
+}
+.workflow-dropdown-menu :deep(button.list-item:hover),
+.workflow-dropdown-menu :deep(button.list-item:focus-visible) {
+  background: var(--studio-selection);
+  border-color: var(--studio-ink);
+}
+</style>

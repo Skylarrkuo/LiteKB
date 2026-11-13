@@ -1,10 +1,10 @@
 <template>
-  <div class="p-16-24">
+  <div class="knowledge-data-page">
     <h2 class="mb-16">{{ $t('common.setting') }}</h2>
     <el-card style="--el-card-padding: 0">
-      <div class="knowledge-setting main-calc-height">
+      <div class="knowledge-setting">
         <el-scrollbar>
-          <div class="p-24" v-loading="loading">
+          <div class="data-surface" v-loading="loading">
             <h4 class="title-decoration-1 mb-16">
               {{ $t('common.info') }}
             </h4>
@@ -101,27 +101,6 @@
                     </div>
                   </div>
                 </el-card>
-              </el-form-item>
-              <el-form-item
-                :label="$t('views.knowledge.form.source_url.label')"
-                prop="source_url"
-                v-if="detail?.type === 1"
-              >
-                <el-input
-                  v-model="form.source_url"
-                  :placeholder="$t('views.knowledge.form.source_url.placeholder')"
-                  @blur="form.source_url = form.source_url.trim()"
-                />
-              </el-form-item>
-              <el-form-item
-                :label="$t('views.knowledge.form.selector.label')"
-                v-if="detail?.type === 1"
-              >
-                <el-input
-                  v-model="form.selector"
-                  :placeholder="$t('views.knowledge.form.selector.placeholder')"
-                  @blur="form.selector = form.selector.trim()"
-                />
               </el-form-item>
               <el-form-item label="App ID" prop="app_id" v-if="detail?.type === 2">
                 <el-input
@@ -372,8 +351,10 @@ onMounted(() => {
 })
 </script>
 <style lang="scss" scoped>
+@use './detail';
 .knowledge-setting {
-  width: 70%;
+  max-width: 800px;
   margin: 0 auto;
+  .avatar-blue { background: var(--studio-ink); }
 }
 </style>

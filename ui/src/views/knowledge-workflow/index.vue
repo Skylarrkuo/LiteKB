@@ -26,14 +26,6 @@
         </el-button>
       </div>
       <div v-else-if="!route.path.includes('share/')">
-        <el-button
-          class="ml-8"
-          v-if="permissionPrecise.create()"
-          @click="openTemplateStoreDialog()"
-        >
-          <AppIcon iconName="app-template-center" class="mr-4" />
-          {{ $t('workflow.setting.templateCenter') }}
-        </el-button>
         <el-button @click="showPopover = !showPopover">
           <AppIcon iconName="app-add-outlined" class="mr-4" />
           {{ $t('workflow.setting.addComponent') }}
@@ -179,12 +171,7 @@
       v-click-outside="clickoutsideHistory"
       @refreshVersion="refreshVersion"
     />
-    <TemplateStoreDialog
-      ref="templateStoreDialogRef"
-      :api-type="apiType"
-      source="work_flow"
-      @refresh="getDetail"
-    />
+
     <DefaultModelSettingMenu
       v-if="detail"
       v-model="detail.default_model_setting"
@@ -218,7 +205,6 @@ import permissionMap from '@/permission'
 import { WorkflowMode } from '@/enums/application'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import { knowledgeBaseNode } from '@/workflow/common/data'
-import TemplateStoreDialog from '@/views/knowledge/template-store/TemplateStoreDialog.vue'
 import DefaultModelSettingMenu from '@/components/workflow-dropdown-menu/default-model-setting/index.vue'
 provide('getResourceDetail', () => detail)
 provide('workflowMode', WorkflowMode.Knowledge)
@@ -375,6 +361,7 @@ function clickoutside() {
 }
 
 const publish = () => {
+  if (workflowRef.value?.isReadOnly()) return MsgError(t('studio.unavailableNodes'))
   workflowRef.value
     ?.validate()
     .then(() => {
@@ -461,16 +448,7 @@ const importKnowledgeWorkflow = (file: any) => {
         .then(() => {
           getDetail()
         })
-        .catch((error: any) => {
-          if (error.code === 400) {
-            MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-              cancelButtonText: t('common.confirm'),
-              confirmButtonText: t('common.professional'),
-            }).then(() => {
-              window.open('https://maxkb.cn/pricing.html', '_blank')
-            })
-          }
-        })
+        .catch(() => {})
     })
     .catch(() => {})
 }
@@ -488,6 +466,7 @@ function exportKnowledgeWorkflow(name: string, id: string) {
 }
 
 const clickShowDebug = () => {
+  if (workflowRef.value?.isReadOnly()) return MsgError(t('studio.unavailableNodes'))
   workflowRef.value
     ?.validate()
     .then(() => {
@@ -574,6 +553,7 @@ function getDetail() {
 }
 
 function saveknowledge(bool?: boolean, back?: boolean) {
+  if (workflowRef.value?.isReadOnly()) return
   const obj = {
     work_flow: getGraphData(),
     default_model_setting: detail.value?.default_model_setting || {},
@@ -701,10 +681,6 @@ const toImportDoc = () => {
   }
 }
 
-const templateStoreDialogRef = ref()
-function openTemplateStoreDialog() {
-  templateStoreDialogRef.value?.open(folderId)
-}
 
 /**
  * 定时保存

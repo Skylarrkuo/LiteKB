@@ -3,7 +3,7 @@
     align-center
     :title="$t('common.paramSetting')"
     v-model="dialogVisible"
-    style="width: 550px"
+    width="min(550px, calc(100vw - 24px))"
     append-to-body
     destroy-on-close
     :close-on-click-modal="false"
@@ -13,14 +13,19 @@
          避免 show 到 render() 之间闪现上一次打开的模型参数内容/空白 -->
     <div v-loading="loading" class="param-setting-dialog-body">
       <DynamicsForm
+        v-if="ready"
         v-model="form_data"
         :model="form_data"
+        default-item-width="100%"
         label-position="top"
         require-asterisk-position="right"
         :render_data="model_form_field"
         ref="dynamicsFormRef"
       >
       </DynamicsForm>
+      <p v-if="ready && model_form_field.length === 0" class="no-parameters">
+        {{ $t('views.model.tip.emptyMessage2') }}
+      </p>
     </div>
 
     <template #footer>
@@ -28,7 +33,7 @@
         <el-button @click.prevent="dialogVisible = false">
           {{ $t('common.cancel') }}
         </el-button>
-        <el-button type="primary" @click="submit" :loading="loading">
+        <el-button type="primary" @click="submit" :loading="loading" :disabled="!ready">
           {{ $t('common.confirm') }}
         </el-button>
       </span>
@@ -37,11 +42,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { FormField } from '@/components/dynamics-form/type'
 import { useRoute } from 'vue-router'
 import DynamicsForm from '@/components/dynamics-form/index.vue'
-import permissionMap from '@/permission'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 
 const route = useRoute()
@@ -58,65 +62,42 @@ const dynamicsFormRef = ref<InstanceType<typeof DynamicsForm>>()
 const form_data = ref<any>({})
 const dialogVisible = ref(false)
 const loading = ref(false)
-const getApi = (model_id: string, application_id?: string) => {
-  return loadSharedApi({ type: 'model', systemType: apiType.value }).getModelParamsForm(
-    model_id,
-    loading,
-  )
-}
+const ready = ref(false)
+let revision = 0
+const getApi = (modelId: string) =>
+  loadSharedApi({ type: 'model', systemType: apiType.value }).getModelParamsForm(modelId)
 
-const modelID = ref('')
-
-const permissionPrecise = computed(() => {
-  return permissionMap['model'][apiType.value]
-})
-
-const open = (
-  model_id: string,
-  application_id?: string,
-  model_setting_data?: any,
-  model_form_field_list?: Array<any>,
+const open = async (
+  modelId: string,
+  _applicationId?: string,
+  values?: any,
+  providedFields?: FormField[],
 ) => {
-  // 先清空旧的字段/值,再显示弹窗,避免 destroy-on-close 重挂载时 onBeforeMount
-  // 用上一次打开的 model_form_field 渲染出旧参数内容(不同模型类别切换时尤甚),等异步取数完成 render() 才修正
+  const current = ++revision
+  ready.value = false
   model_form_field.value = []
-  dialogVisible.value = true
-
-  modelID.value = model_id
   form_data.value = {}
-
-  if (model_form_field_list) {
-    model_form_field.value = model_form_field_list
-    // 渲染动态表单
-    nextTick(() => {
-      dynamicsFormRef.value?.render(model_form_field.value, model_setting_data)
-    })
-  } else {
-    const api = getApi(model_id, application_id)
-    api.then((ok: any) => {
-      model_form_field.value = ok.data
-      // 渲染动态表单
-      dynamicsFormRef.value?.render(model_form_field.value, model_setting_data)
-    })
+  dialogVisible.value = true
+  loading.value = !providedFields
+  try {
+    const fields = providedFields ?? (await getApi(modelId)).data
+    if (current !== revision || !dialogVisible.value) return
+    model_form_field.value = fields
+    form_data.value = values || {}
+    ready.value = true
+  } finally {
+    if (current === revision) loading.value = false
   }
 }
 
-const reset_default = (model_id: string, application_id?: string) => {
-  const api = getApi(model_id, application_id)
-  api.then((ok: any) => {
-    model_form_field.value = ok.data
-    const model_setting_data = ok.data
-      .map((item: any) => {
-        if (item.show_default_value === false) {
-          return { [item.field]: undefined }
-        } else {
-          return { [item.field]: item.default_value }
-        }
-      })
-      .reduce((x: any, y: any) => ({ ...x, ...y }), {})
-
-    emit('refresh', model_setting_data)
-  })
+const reset_default = async (modelId: string, _applicationId?: string) => {
+  const current = ++revision
+  loading.value = false
+  const { data } = await getApi(modelId)
+  if (current !== revision) return
+  emit('refresh', Object.fromEntries(data.map((field: FormField) => [
+    field.field, field.show_default_value === false ? undefined : field.default_value,
+  ])))
 }
 
 const submit = async () => {
@@ -132,5 +113,13 @@ defineExpose({ open, reset_default })
 <style lang="scss" scoped>
 .param-setting-dialog-body {
   min-height: 120px;
+  max-height: min(60dvh, 620px);
+  padding: 3px;
+  overflow-y: auto;
+}
+.no-parameters {
+  margin: 32px 0;
+  text-align: center;
+  color: var(--app-text-color-secondary);
 }
 </style>

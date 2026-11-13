@@ -1,112 +1,24 @@
 <template>
-  <div class="hit-test p-16-24">
-    <h4>
-      {{ $t('views.application.hitTest.title') }}
-      <el-text type="info" class="ml-4"> {{ $t('views.application.hitTest.text') }}</el-text>
-    </h4>
-    <el-card
-      style="--el-card-padding: 0"
-      class="hit-test__main p-16 mt-16 mb-16"
-      v-loading="loading"
-    >
-      <div class="question-title" :style="{ visibility: questionTitle ? 'visible' : 'hidden' }">
-        <div class="avatar">
-          <el-avatar>
-            <img src="@/assets/user-icon.svg" style="width: 54%" alt="" />
-          </el-avatar>
-        </div>
-        <div class="content ml-12">
-          <h4 class="text break-all ellipsis-1" style="width: 66%" :title="questionTitle">
-            {{ questionTitle }}
-          </h4>
-        </div>
-      </div>
-      <el-scrollbar>
-        <div :style="{ height: user.isExpire() ? 'calc(100vh - 340px)' : 'calc(100vh - 300px)' }">
-          <el-empty
-            v-if="first"
-            :image="emptyImg"
-            :description="$t('views.application.hitTest.emptyMessage1')"
-            style="padding-top: 160px"
-            :image-size="125"
-          />
-          <el-empty
-            v-else-if="paragraphDetail.length == 0"
-            :description="$t('views.application.hitTest.emptyMessage2')"
-            style="padding-top: 160px"
-            :image-size="125"
-          />
-          <el-row v-else>
-            <el-col
-              :xs="24"
-              :sm="12"
-              :md="12"
-              :lg="8"
-              :xl="6"
-              v-for="(item, index) in paragraphDetail"
-              :key="index"
-              class="p-8"
-            >
-              <CardBox
-                shadow="hover"
-                :title="item.title || '-'"
-                :description="item.content"
-                class="document-card layout-bg layout-bg cursor"
-                :class="item.is_active ? '' : 'disabled'"
-                @click="editParagraph(item)"
-              >
-                <template #icon>
-                  <el-avatar class="avatar-light" :size="22"> {{ index + 1 + '' }}</el-avatar>
-                </template>
-                <template #tag>
-                  <div class="primary">{{ item.similarity?.toFixed(3) }}</div>
-                </template>
-                <template #footer>
-                  <div class="footer-content flex-between">
-                    <el-text>
-                      <el-icon>
-                        <Document />
-                      </el-icon>
-                      {{ item?.document_name }}
-                    </el-text>
-                    <div v-if="item.trample_num || item.star_num">
-                      <span v-if="item.star_num">
-                        <AppIcon iconName="app-like-color"></AppIcon>
-                        {{ item.star_num }}
-                      </span>
-                      <span v-if="item.trample_num" class="ml-4">
-                        <AppIcon iconName="app-oppose-color"></AppIcon>
-                        {{ item.trample_num }}
-                      </span>
-                    </div>
-                  </div>
-                </template>
-              </CardBox>
-            </el-col>
-          </el-row>
-        </div>
-      </el-scrollbar>
-    </el-card>
-    <ParagraphDialog
-      ref="ParagraphDialogRef"
-      :title="title"
-      @refresh="refresh"
-      :apiType="apiType"
-    />
-
-    <div class="hit-test__operate">
+  <div class="hit-test">
+    <header class="hit-heading">
+      <h2>{{ $t('views.application.hitTest.title') }}</h2>
+      <p>{{ $t('views.application.hitTest.text') }}</p>
+    </header>
+    <div class="hit-test__operate" v-if="!route.path.includes('share/')">
       <el-popover
         :visible="popoverVisible"
-        placement="right-end"
-        :width="500"
+        placement="bottom-end"
+        popper-class="knowledge-retrieval-settings"
+        :width="'min(500px, calc(100vw - 28px))'"
+        :popper-style="{ maxHeight: 'min(68dvh, 620px)', overflowY: 'auto' }"
         trigger="click"
         :persistent="false"
       >
         <template #reference>
           <el-button
-            class="mb-8"
+            class="settings-button"
+            :aria-expanded="popoverVisible"
             @click="settingChange('open')"
-            v-if="!route.path.includes('share/')"
           >
             <AppIcon iconName="app-setting"></AppIcon>
             {{ $t('common.paramSetting') }}</el-button
@@ -163,6 +75,12 @@
                 }}</el-text>
               </el-radio>
             </el-card>
+            <el-card shadow="never" class="mb-16" :class="{ 'border-active': cloneForm.search_mode === 'rrf' }">
+              <el-radio value="rrf" size="large">
+                <p class="mb-4">{{ $t('views.application.dialog.rankFusion') }}</p>
+                <el-text type="info">{{ $t('views.application.dialog.rankFusionTooltip') }}</el-text>
+              </el-radio>
+            </el-card>
           </el-radio-group>
         </div>
         <el-row :gutter="20">
@@ -174,7 +92,7 @@
               <el-input-number
                 v-model="cloneForm.similarity"
                 :min="0"
-                :max="cloneForm.search_mode === 'blend' ? 2 : 1"
+                :max="['blend', 'rrf'].includes(cloneForm.search_mode) ? 2 : 1"
                 :precision="3"
                 :step="0.1"
                 :value-on-clear="0"
@@ -206,49 +124,91 @@
           }}</el-button>
         </div>
       </el-popover>
-      <div class="operate-textarea flex" v-if="!route.path.includes('share/')">
+      <div class="query-input">
+        <el-icon aria-hidden="true"><Search /></el-icon>
         <el-input
           ref="quickInputRef"
           v-model="inputValue"
           type="textarea"
+          :aria-label="$t('common.search')"
           :placeholder="$t('common.inputPlaceholder')"
-          :autosize="{ minRows: 1, maxRows: 1 }"
-          @keydown.enter="sendChatHandle($event)"
+          :autosize="{ minRows: 1, maxRows: 4 }"
+          @keydown.enter="sendChatHandle"
         />
-        <div class="operate">
-          <el-button
-            text
-            class="sent-button"
-            :disabled="isDisabledChart || loading"
-            @click="sendChatHandle"
-          >
-            <img v-show="isDisabledChart || loading" src="@/assets/chat/icon_send.svg" alt="" />
-            <img
-              v-show="!isDisabledChart && !loading"
-              src="@/assets/chat/icon_send_colorful.svg"
-              alt=""
-            />
-          </el-button>
-        </div>
+        <el-button type="primary" :disabled="isDisabledChart || loading" @click="getHitTestList()">
+          {{ $t('common.search') }}
+        </el-button>
       </div>
     </div>
+    <section class="hit-results" v-loading="loading" :aria-label="$t('views.application.hitTest.title')">
+      <div v-if="questionTitle" class="tested-query">
+        <el-icon aria-hidden="true"><Search /></el-icon>
+        <h3>{{ questionTitle }}</h3>
+      </div>
+      <el-empty v-if="!paragraphDetail.length" class="hit-empty"
+        :description="$t(first ? 'views.application.hitTest.emptyMessage1' : 'views.application.hitTest.emptyMessage2')">
+        <template #image><el-icon aria-hidden="true"><Document /></el-icon></template>
+      </el-empty>
+      <div v-else class="hit-grid">
+        <CardBox
+          v-for="(item, index) in paragraphDetail"
+          :key="item.id"
+          shadow="hover"
+          :title="item.title || '-'"
+          :description="item.content"
+          class="document-card cursor"
+          :class="item.is_active ? '' : 'disabled'"
+          @click="editParagraph(item)"
+        >
+          <template #icon>
+            <el-avatar class="rank-number" :size="22"> {{ index + 1 + '' }}</el-avatar>
+          </template>
+          <template #tag>
+            <span class="score" :title="$t('views.application.dialog.similarityTooltip')">{{ item.similarity?.toFixed(3) }}</span>
+          </template>
+          <template #footer>
+            <div class="footer-content flex-between">
+              <el-text truncated :title="item?.document_name">
+                <el-icon>
+                  <Document />
+                </el-icon>
+                {{ item?.document_name }}
+              </el-text>
+              <div v-if="item.trample_num || item.star_num">
+                <span v-if="item.star_num">
+                  <AppIcon iconName="app-like-color"></AppIcon>
+                  {{ item.star_num }}
+                </span>
+                <span v-if="item.trample_num" class="ml-4">
+                  <AppIcon iconName="app-oppose-color"></AppIcon>
+                  {{ item.trample_num }}
+                </span>
+              </div>
+            </div>
+          </template>
+        </CardBox>
+      </div>
+    </section>
+    <ParagraphDialog
+      ref="ParagraphDialogRef"
+      :title="title"
+      @refresh="refresh"
+      :apiType="apiType"
+    />
+
   </div>
 </template>
 <script setup lang="ts">
-import { nextTick, ref, onMounted, computed } from 'vue'
+import { nextTick, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import useStore from '@/stores'
 import { cloneDeep } from 'lodash'
 import ParagraphDialog from '@/views/paragraph/component/ParagraphDialog.vue'
-import { arraySort } from '@/utils/array'
-import emptyImg from '@/assets/hit-test-empty.png'
 import { t } from '@/locales'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 const route = useRoute()
 const {
   params: { id },
 } = route as any
-const { user } = useStore()
 const apiType = computed(() => {
   if (route.path.includes('shared')) {
     return 'systemShare'
@@ -278,10 +238,10 @@ const cloneForm = ref<any>({})
 const popoverVisible = ref(false)
 const questionTitle = ref('')
 
-const isDisabledChart = computed(() => !inputValue.value)
+const isDisabledChart = computed(() => !inputValue.value.trim())
 
 function changeHandle(val: string) {
-  if (val === 'keywords') {
+  if (val === 'keywords' || val === 'rrf') {
     cloneForm.value.similarity = 0
   } else {
     cloneForm.value.similarity = 0.6
@@ -303,7 +263,8 @@ function editParagraph(row: any) {
   ParagraphDialogRef.value.open(row)
 }
 
-function sendChatHandle(event: any) {
+function sendChatHandle(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return
   if (!event?.ctrlKey && !event?.shiftKey && !event?.altKey && !event?.metaKey) {
     // 如果没有按下组合键，则会阻止默认事件
     event.preventDefault()
@@ -330,17 +291,17 @@ const insertNewlineAtCursor = (event?: any) => {
   })
 }
 
-function getHitTestList() {
+function getHitTestList(query = inputValue.value.trim()) {
+  if (!query || loading.value) return
   const obj = {
-    query_text: inputValue.value,
+    query_text: query,
     ...formInline.value,
   }
   loadSharedApi({ type: 'knowledge', systemType: apiType.value })
     .putKnowledgeHitTest(id, obj, loading)
     .then((res: any) => {
-      paragraphDetail.value = res.data && arraySort(res.data, 'comprehensive_score', true)
-      questionTitle.value = inputValue.value
-      inputValue.value = ''
+      paragraphDetail.value = res.data
+      questionTitle.value = query
       first.value = false
     })
 }
@@ -351,92 +312,95 @@ function refresh(data: any) {
     obj.content = data.content
     obj.title = data.title
   } else {
-    paragraphDetail.value = []
-    getHitTestList()
+    getHitTestList(questionTitle.value)
   }
 }
 
-onMounted(() => {})
 </script>
 <style lang="scss" scoped>
-.hit-test {
-  .question-title {
-    .avatar {
-      float: left;
-    }
-    .content {
-      padding-left: 40px;
-      .text {
-        padding: 6px 0;
-        height: 34px;
-        box-sizing: border-box;
-      }
-    }
-  }
-
-  &__operate {
-    .operate-textarea {
-      box-shadow: 0px 6px 24px 0px rgba(var(--el-text-color-primary-rgb), 0.08);
-      background-color: #ffffff;
-      border-radius: 8px;
-      border: 1px solid #ffffff;
-      box-sizing: border-box;
-
-      &:has(.el-textarea__inner:focus) {
-        border: 1px solid var(--el-color-primary);
-      }
-
-      :deep(.el-textarea__inner) {
-        border-radius: 8px !important;
-        box-shadow: none;
-        resize: none;
-        padding: 12px 16px;
-      }
-      .operate {
-        padding: 6px 10px;
-        .sent-button {
-          max-height: none;
-          .el-icon {
-            font-size: 24px;
-          }
-        }
-        :deep(.el-loading-spinner) {
-          margin-top: -15px;
-          .circular {
-            width: 31px;
-            height: 31px;
-          }
-        }
-      }
-    }
-  }
+:global(.el-popover.el-popper.knowledge-retrieval-settings) {
+  border-radius: var(--app-border-radius-large);
+  border-color: var(--studio-hairline);
+  box-shadow: var(--studio-shadow);
+  padding: 16px;
 }
 .hit-test {
-  &__header {
-    position: absolute;
-    right: calc(var(--app-base-px) * 3);
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 20px clamp(14px, 2.4vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.hit-heading {
+  h2 { margin: 0; font-size: 22px; line-height: 1.3; color: var(--studio-ink); }
+  p { margin: 5px 0 0; color: var(--app-text-color-secondary); line-height: 1.5; }
+}
+.hit-test__operate {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  align-items: center;
+  gap: 10px;
+  .settings-button { order: 1; }
+}
+.query-input {
+  display: flex;
+  align-items: center;
+  flex: 1 1 320px;
+  min-width: 0;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-base);
+  background: var(--app-view-bg-color);
+  > .el-icon { color: var(--studio-ink); }
+  &:focus-within { border-color: var(--studio-ink); }
+  :deep(.el-textarea__inner) { box-shadow: none; resize: none; padding: 5px 0; }
+}
+.hit-results {
+  flex: 1 0 auto;
+  min-height: 230px;
+  padding: clamp(12px, 1.6vw, 22px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-large);
+  background: var(--app-view-bg-color);
+  box-shadow: var(--studio-shadow);
+}
+.tested-query { display: flex; align-items: baseline; gap: 8px; color: var(--studio-ink); margin-bottom: 16px; }
+.tested-query h3 { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.hit-empty {
+  flex: 1;
+  :deep(.el-empty__image) {
+    width: 54px; height: 54px; display: grid; place-items: center;
+    border-radius: var(--app-border-radius-large); background: var(--studio-selection); color: var(--studio-ink);
+    .el-icon { font-size: 26px; }
   }
-  .document-card {
-    height: 210px;
-    border: 1px solid var(--app-layout-bg-color);
-    &:hover {
-      background: #ffffff;
-      border: 1px solid var(--el-border-color);
-    }
-    &.disabled {
-      background: var(--app-layout-bg-color);
-      border: 1px solid var(--app-layout-bg-color);
-      :deep(.description) {
-        color: var(--app-border-color-dark);
-      }
-      :deep(.title) {
-        color: var(--app-border-color-dark);
-      }
-    }
-    :deep(.description) {
-      -webkit-line-clamp: 5 !important;
-      height: 110px;
-    }
-  }
+}
+.hit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.document-card {
+  --card-min-width: 0;
+  --app-card-box-description-height: auto;
+  min-height: 176px;
+  border-color: var(--studio-hairline);
+  border-radius: var(--app-border-radius-base);
+  box-shadow: none;
+  &:hover, &:focus-visible { border-color: var(--studio-ink); }
+  .rank-number { color: var(--studio-ink); background: var(--studio-selection); font-variant-numeric: tabular-nums; }
+  .score { font-variant-numeric: tabular-nums; color: var(--studio-ink); font-size: 12px; font-weight: 650; }
+  :deep(.title) { padding-right: 42px; }
+  :deep(.description .content) { -webkit-line-clamp: 3; }
+  :deep(.card-footer > div), .footer-content { min-width: 0; }
+  &.disabled { background: var(--app-layout-bg-color); }
+}
+@media (max-width: 760px) {
+  .hit-test { padding-block: 14px; gap: 12px; }
+  .hit-test__operate { flex-direction: column; align-items: stretch; }
+  .query-input { flex-basis: auto; }
+  .settings-button { align-self: flex-start; }
 }
 </style>

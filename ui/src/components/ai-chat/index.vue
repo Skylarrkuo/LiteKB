@@ -94,26 +94,17 @@
           ref="dialogScrollbar"
           class="ai-chat__content p-16"
           id="chatListId"
-          :style="{ marginBottom: selection ? '65px' : '' }"
         >
           <PrologueContent
             :type="type"
             :application="applicationDetails"
             :available="available"
             :send-message="sendMessage"
-            v-if="!selection"
           ></PrologueContent>
-          <el-checkbox-group v-model="multipleSelectionChat" @change="handleCheckedChatChange">
             <template v-for="(item, index) in chatList" :key="index">
               <div class="flex-between w-full">
-                <el-checkbox :value="item.record_id" v-if="selection" />
                 <div
-                  class="w-full border-r-8"
-                  :class="[
-                    selection ? 'p-12 mt-8 mb-8 cursor' : 'mt-24',
-                    multipleSelectionChat.includes(item.record_id) ? 'is-selected' : '',
-                  ]"
-                  @click="toggleSelect(item.record_id)"
+                  class="w-full border-r-8 mt-24"
                 >
                   <!-- 问题 -->
                   <QuestionContent
@@ -123,19 +114,12 @@
                     :send-message="sendMessage"
                     :chat-record="item"
                     :is-last="index >= chatList.length - 1"
-                    :selection="selection"
                   ></QuestionContent>
                 </div>
               </div>
               <div class="flex align-center w-full">
-                <el-checkbox :value="item.record_id" v-if="selection" />
                 <div
                   class="w-full border-r-8"
-                  :class="[
-                    selection ? 'p-12 cursor' : '',
-                    multipleSelectionChat.includes(item.record_id) ? 'is-selected' : '',
-                  ]"
-                  @click="toggleSelect(item.record_id)"
                 >
                   <!-- 回答 -->
                   <AnswerContent
@@ -151,12 +135,10 @@
                     @openParagraphDocument="
                       (val: any) => emit('openParagraphDocument', chatList[index], val)
                     "
-                    :selection="selection"
                   ></AnswerContent>
                 </div>
               </div>
             </template>
-          </el-checkbox-group>
           <TransitionContent
             v-if="transcribing"
             :text="t('aiChat.inputPlaceholder.recorderLoading')"
@@ -173,25 +155,6 @@
             <ArrowDownBold />
           </el-icon>
         </el-button>
-        <div class="mul-operation border-t w-full" v-if="selection === true">
-          <div class="flex-between chat-width">
-            <el-checkbox v-model="checkAll" @change="handleCheckAllChange">
-              {{ $t('common.allCheck') }}
-            </el-checkbox>
-            <div>
-              <el-button @click="cancelCheckHandle">
-                {{ $t('common.cancel') }}
-              </el-button>
-              <el-button
-                type="primary"
-                @click="shareChatHandle"
-                :disabled="shareLoading || multipleSelectionChat.length === 0"
-              >
-                {{ $t('aiChat.copyLinkText') }}
-              </el-button>
-            </div>
-          </div>
-        </div>
         <ChatInputOperate
           :app-id="appId"
           :application-details="applicationDetails"
@@ -204,7 +167,7 @@
           v-model:chat-id="chartOpenId"
           :loading="currentChatGenerating"
           v-model:show-user-input="showUserInput"
-          v-else-if="type !== 'log' && type !== 'share'"
+          v-if="type !== 'log' && type !== 'share'"
         >
           <template #inlineParams>
             <InlineParams
@@ -254,11 +217,9 @@ import ChatInputOperate from '@/components/ai-chat/component/chat-input-operate/
 import PrologueContent from '@/components/ai-chat/component/prologue-content/index.vue'
 import UserForm from '@/components/ai-chat/component/user-form/index.vue'
 import Control from '@/components/ai-chat/component/control/index.vue'
-import type { CheckboxValueType } from 'element-plus'
 import { t } from '@/locales'
 import bus from '@/bus'
 import { throttle } from 'lodash-es'
-import { copyClick } from '@/utils/clipboard'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import { getWrite } from '@/utils/chat'
 import InlineParams from '@/components/ai-chat/component/inline-params/index.vue'
@@ -421,75 +382,10 @@ watch(
   },
 )
 
-// 选择对话分享
-const checkAll = ref(false)
-const multipleSelectionChat = ref<any[]>([])
-const shareLoading = ref(false)
-
-watch(
-  () => props.selection,
-  (value) => {
-    if (value) {
-      if (value && multipleSelectionChat.value.length === 0) {
-        multipleSelectionChat.value = chatList.value.map((v) => v.record_id)
-        checkAll.value = true
-      }
-    } else {
-      checkAll.value = false
-      multipleSelectionChat.value = []
-    }
-  },
-  {
-    immediate: true,
-  },
-)
-
-function shareChatHandle() {
-  const validIds = new Set(chatList.value.map((v) => v.record_id))
-  const selectedIds = multipleSelectionChat.value.filter((id) => validIds.has(id))
-
-  const obj = {
-    chat_record_ids: selectedIds,
-    is_current_all: checkAll.value,
-  }
-  chatAPI.postShareChat(id || props.appId, chartOpenId.value, obj, shareLoading).then((res) => {
-    if (res.data?.link) {
-      copyClick(`${window.location.origin}${window.MaxKB.prefix}/share/${res.data.link}`)
-    }
-  })
-}
-
-const handleCheckAllChange = (val: CheckboxValueType) => {
-  multipleSelectionChat.value = val ? chatList.value.map((v) => v.record_id) : []
-  checkAll.value = val as boolean
-}
-const handleCheckedChatChange = (value: CheckboxValueType[]) => {
-  const checkedCount = value.length
-  checkAll.value = checkedCount === chatList.value.length
-}
-
-function toggleSelect(id: number) {
-  if (props.selection) {
-    const index = multipleSelectionChat.value.indexOf(id)
-    if (index === -1) {
-      multipleSelectionChat.value.push(id)
-    } else {
-      multipleSelectionChat.value.splice(index, 1)
-    }
-    checkAll.value = multipleSelectionChat.value.length === chatList.value.length
-  }
-}
-
 const handleOpenDialog = () => {
   showUserInput.value = true
   initialFormData.value = JSON.parse(JSON.stringify(form_data.value))
   initialApiFormData.value = JSON.parse(JSON.stringify(api_form_data.value))
-}
-
-function cancelCheckHandle() {
-  checkAll.value = false
-  multipleSelectionChat.value = []
-  emit('update:selection', false)
 }
 
 const toggleUserInput = () => {
@@ -924,11 +820,6 @@ onMounted(() => {
         scrollDiv.value.setScrollTop(getMaxHeight())
       }
     })
-  })
-  bus.on('click:share', (id: string) => {
-    multipleSelectionChat.value.push(id)
-    checkAll.value = multipleSelectionChat.value.length === chatList.value.length
-    emit('update:selection', true)
   })
   bus.on('chat:stop', stopGenerating)
 })

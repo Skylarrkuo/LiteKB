@@ -1,9 +1,9 @@
 <template>
   <div class="application-workflow" v-loading="loading">
-    <div class="header border-b flex-between p-12-24 white-bg">
-      <div class="flex align-center">
-        <back-button @click="back"></back-button>
-        <h4 class="ellipsis" style="max-width: 300px" :title="detail?.name">{{ detail?.name }}</h4>
+    <div class="editor-header">
+      <div class="editor-identity">
+        <back-button :aria-label="$t('views.application.title')" @click="back" />
+        <h4 class="editor-title ellipsis" :title="detail?.name">{{ detail?.name }}</h4>
         <div v-if="showHistory && disablePublic">
           <el-text type="info" class="ml-16 color-secondary"
             >{{ $t('workflow.info.previewVersion') }}
@@ -14,38 +14,34 @@
           >{{ $t('workflow.info.saveTime') }}{{ datetimeFormat(saveTime) }}</el-text
         >
       </div>
-      <div v-if="showHistory && disablePublic">
+      <div class="editor-actions" v-if="showHistory && disablePublic">
         <el-button type="primary" class="mr-8" @click="refreshVersion()">
           {{ $t('workflow.setting.restoreVersion') }}
         </el-button>
         <el-divider direction="vertical" />
-        <el-button text @click="closeHistory">
+        <el-button text :aria-label="$t('common.close')" @click="closeHistory">
           <el-icon>
             <Close />
           </el-icon>
         </el-button>
       </div>
-      <div v-else>
-        <el-button
-          class="ml-8"
-          v-if="permissionPrecise.edit(id)"
-          @click="openTemplateStoreDialog()"
-        >
-          <AppIcon iconName="app-template-center" class="mr-4" />
-          {{ $t('workflow.setting.templateCenter') }}
-        </el-button>
-        <el-button @click="showPopover = !showPopover">
+      <div v-else class="editor-actions">
+        <el-button class="add-node-trigger" :aria-expanded="showPopover" @click="showPopover = !showPopover">
           <AppIcon iconName="app-add-outlined" class="mr-4" />
           {{ $t('workflow.setting.addComponent') }}
         </el-button>
         <el-button
+          class="model-settings-trigger"
+          :aria-label="$t('workflow.setting.defaultModelSetting')"
+          :title="$t('workflow.setting.defaultModelSetting')"
+          :aria-expanded="defaultModelSettingVisible"
           @click="toggleDefaultModelSetting"
           v-if="permissionPrecise.debug(id)"
         >
           <AppIcon iconName="app-setting" class="mr-4"></AppIcon>
-          {{ $t('workflow.setting.defaultModelSetting') }}
+          <span class="model-settings-label">{{ $t('workflow.setting.defaultModelSetting') }}</span>
         </el-button>
-        <el-button @click="clickShowDebug" :disabled="showDebug" v-if="permissionPrecise.debug(id)">
+        <el-button ref="debugTrigger" @click="clickShowDebug" :disabled="showDebug" v-if="permissionPrecise.debug(id)">
           <AppIcon iconName="app-debug-outlined" class="mr-4"></AppIcon>
           {{ $t('common.debug') }}
         </el-button>
@@ -58,18 +54,11 @@
         </el-button>
 
         <el-dropdown trigger="click">
-          <el-button text @click.stop class="ml-8 mt-4">
+          <el-button text @click.stop :aria-label="$t('common.moreSettings')">
             <AppIcon iconName="app-more" class="rotate-90"></AppIcon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <a :href="shareUrl" target="_blank">
-                <el-dropdown-item>
-                  <AppIcon iconName="app-create-chat" class="color-secondary"></AppIcon>
-                  {{ $t('views.application.operation.toChat') }}
-                </el-dropdown-item>
-              </a>
-
               <el-dropdown-item @click="openHistory">
                 <AppIcon iconName="app-history-outlined" class="color-secondary"></AppIcon>
                 {{ $t('workflow.setting.releaseHistory') }}
@@ -86,87 +75,70 @@
         </el-dropdown>
       </div>
     </div>
-    <!-- 下拉框 -->
-    <el-collapse-transition>
-      <DropdownMenu
-        :show="showPopover"
-        :id="id"
-        v-click-outside="clickoutside"
-        @clickNodes="clickNodes"
-        @onmousedown="onmousedown"
-        :workflowRef="workflowRef"
-      />
-    </el-collapse-transition>
-    <!-- 主画布 -->
     <div class="workflow-main" ref="workflowMainRef">
       <workflow ref="workflowRef" v-if="detail" :data="detail?.work_flow" />
-    </div>
-    <!-- 调试 -->
-    <el-collapse-transition>
-      <div class="workflow-debug-container" :class="enlarge ? 'enlarge' : ''" v-if="showDebug">
-        <div class="workflow-debug-header" :class="!isDefaultTheme ? 'custom-header' : ''">
-          <div class="flex-between">
-            <div class="flex align-center">
-              <div class="mr-12 ml-24 flex">
-                <el-avatar
-                  v-if="isAppIcon(detail?.icon)"
-                  shape="square"
-                  :size="32"
-                  style="background: none"
-                >
-                  <img :src="resetUrl(detail?.icon)" alt="" />
-                </el-avatar>
-                <LogoIcon v-else height="32px" />
-              </div>
+      <!-- 下拉框 -->
+      <el-collapse-transition>
+        <DropdownMenu
+          :show="showPopover"
+          :id="id"
+          v-click-outside="clickoutside"
+          @clickNodes="clickNodes"
+          @onmousedown="onmousedown"
+          :workflowRef="workflowRef"
+        />
+      </el-collapse-transition>
+      <!-- 发布历史 -->
+      <PublishHistory
+        v-if="showHistory"
+        @click="checkVersion"
+        v-click-outside="clickoutsideHistory"
+        @refreshVersion="refreshVersion"
+      />
 
-              <h4 class="ellipsis" style="max-width: 270px" :title="detail?.name">
-                {{ detail?.name || $t('common.name') }}
-              </h4>
-            </div>
-            <div class="mr-16">
-              <el-button link @click="enlarge = !enlarge">
-                <AppIcon
-                  :iconName="enlarge ? 'app-minify' : 'app-magnify'"
-                  class="color-secondary"
-                  style="font-size: 20px"
-                >
-                </AppIcon>
-              </el-button>
-              <el-button link @click="showDebug = false">
-                <el-icon :size="20" class="color-secondary">
-                  <Close />
-                </el-icon>
-              </el-button>
-            </div>
-          </div>
+      <DefaultModelSettingMenu
+        v-if="detail"
+        ref="defaultsMenu"
+        v-model="detail.default_model_setting"
+        :show="defaultModelSettingVisible"
+        :workflow-ref="workflowRef"
+        :readonly="!permissionPrecise.edit(id)"
+        @save="saveApplication(true)"
+        @close="clickoutsideDefaultModelSetting"
+      />
+    </div>
+    <section
+      v-if="showDebug"
+      class="workflow-debug-panel"
+      :class="{ enlarge }"
+      :aria-label="$t('common.debug')"
+      @keydown.esc.stop="closeDebug"
+    >
+      <header class="debug-heading" :class="!isDefaultTheme ? 'custom-header' : ''">
+        <el-avatar v-if="isAppIcon(detail?.icon)" shape="square" :size="32" class="debug-avatar">
+          <img :src="resetUrl(detail.icon)" alt="" />
+        </el-avatar>
+        <LogoIcon v-else height="32px" />
+        <div class="debug-title">
+          <small>{{ $t('common.debug') }}</small>
+          <h4 class="ellipsis" :title="detail?.name">{{ detail?.name || $t('common.name') }}</h4>
         </div>
-        <div class="scrollbar-height">
-          <AiChat :application-details="detail" :type="'debug-ai-chat'"></AiChat>
-        </div>
+        <el-button
+          class="debug-resize" text :aria-pressed="enlarge"
+          :aria-label="enlarge ? $t('common.collapse') : $t('common.expand')"
+          :title="enlarge ? $t('common.collapse') : $t('common.expand')"
+          @click="enlarge = !enlarge"
+        >
+          <AppIcon :iconName="enlarge ? 'app-minify' : 'app-magnify'" />
+        </el-button>
+        <button ref="debugClose" class="debug-close" type="button" :aria-label="$t('common.close')" @click="closeDebug">
+          <el-icon><Close /></el-icon>
+        </button>
+      </header>
+      <div class="debug-conversation">
+        <AiChat :application-details="detail" type="debug-ai-chat" />
       </div>
-    </el-collapse-transition>
-    <!-- 发布历史 -->
-    <PublishHistory
-      v-if="showHistory"
-      @click="checkVersion"
-      v-click-outside="clickoutsideHistory"
-      @refreshVersion="refreshVersion"
-    />
-    <TemplateStoreDialog
-      ref="templateStoreDialogRef"
-      :api-type="apiType"
-      source="work_flow"
-      @refresh="getDetail"
-    />
-    <DefaultModelSettingMenu
-      v-if="detail"
-      v-model="detail.default_model_setting"
-      :show="defaultModelSettingVisible"
-      :workflow-ref="workflowRef"
-      :readonly="!permissionPrecise.edit(id)"
-      @save="saveApplication(true)"
-      @close="clickoutsideDefaultModelSetting"
-    />
+    </section>
   </div>
 </template>
 <script setup lang="ts">
@@ -180,7 +152,6 @@ import PublishHistory from '@/views/application-workflow/component/PublishHistor
 import { isAppIcon, resetUrl } from '@/utils/common'
 import { MsgSuccess, MsgError, MsgConfirm } from '@/utils/message'
 import { datetimeFormat } from '@/utils/time'
-import { mapToUrlParams } from '@/utils/application'
 import useStore from '@/stores'
 import { WorkFlowInstance, validateWorkflowDefaultModels } from '@/workflow/common/validate'
 import { hasPermission } from '@/utils/permission'
@@ -190,7 +161,6 @@ import { EditionConst, PermissionConst, RoleConst } from '@/utils/permission/dat
 import permissionMap from '@/permission'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import { WorkflowMode } from '@/enums/application'
-import TemplateStoreDialog from '@/views/application/template-store/TemplateStoreDialog.vue'
 provide('getResourceDetail', () => detail)
 provide('workflowMode', WorkflowMode.Application)
 provide('loopWorkflowMode', WorkflowMode.ApplicationLoop)
@@ -225,6 +195,14 @@ const detail = ref<any>(null)
 const showPopover = ref(false)
 const showDebug = ref(false)
 const enlarge = ref(false)
+const debugClose = ref<HTMLButtonElement>()
+const debugTrigger = ref<{ $el: HTMLElement }>()
+
+function closeDebug() {
+  showDebug.value = false
+  enlarge.value = false
+  nextTick(() => debugTrigger.value?.$el.focus())
+}
 const saveTime = ref<any>('')
 const isSave = ref(false)
 const showHistory = ref(false)
@@ -234,27 +212,17 @@ const cloneWorkFlow = ref(null)
 
 // ===== 默认模型设置 =====
 const defaultModelSettingVisible = ref(false)
+const defaultsMenu = ref<InstanceType<typeof DefaultModelSettingMenu>>()
 
 function toggleDefaultModelSetting() {
-  defaultModelSettingVisible.value = !defaultModelSettingVisible.value
+  if (defaultModelSettingVisible.value) defaultsMenu.value?.requestClose()
+  else defaultModelSettingVisible.value = true
 }
 
 function clickoutsideDefaultModelSetting() {
   defaultModelSettingVisible.value = false
 }
 // ===== 默认模型设置 End =====
-
-const apiInputParams = ref([])
-
-const urlParams = computed(() =>
-  mapToUrlParams(apiInputParams.value) ? '?' + mapToUrlParams(apiInputParams.value) : '',
-)
-const shareUrl = computed(
-  () =>
-    `${window.location.origin}${window.MaxKB.chatPrefix}/` +
-    detail.value?.access_token +
-    urlParams.value,
-)
 
 function back() {
   if (JSON.stringify(cloneWorkFlow.value) !== JSON.stringify(getGraphData())) {
@@ -342,10 +310,12 @@ function onmousedown(item: any) {
   showPopover.value = false
 }
 
-function clickoutside() {
+function clickoutside(event: MouseEvent) {
+  if ((event.target as Element)?.closest('.add-node-trigger')) return
   showPopover.value = false
 }
 const publish = () => {
+  if (workflowRef.value?.isReadOnly()) return MsgError(t('studio.unavailableNodes'))
   workflowRef.value
     ?.validate()
     .then(() => {
@@ -374,27 +344,6 @@ const publish = () => {
         })
         .then((ok: any) => {
           detail.value.name = ok.data.name
-          ok.data.work_flow?.nodes
-            ?.filter((v: any) => v.id === 'base-node')
-            .map((v: any) => {
-              apiInputParams.value = v.properties.api_input_field_list
-                ? v.properties.api_input_field_list.map((v: any) => {
-                    return {
-                      name: v.variable,
-                      value: v.default_value,
-                    }
-                  })
-                : v.properties.input_field_list
-                  ? v.properties.input_field_list
-                      .filter((v: any) => v.assignment_method === 'api_input')
-                      .map((v: any) => {
-                        return {
-                          name: v.variable,
-                          value: v.default_value,
-                        }
-                      })
-                  : []
-            })
           MsgSuccess(t('views.application.tip.publishSuccess'))
         })
         .catch((res: any) => {
@@ -435,6 +384,7 @@ const publish = () => {
 }
 
 const clickShowDebug = () => {
+  if (workflowRef.value?.isReadOnly()) return MsgError(t('studio.unavailableNodes'))
   workflowRef.value
     ?.validate()
     .then(() => {
@@ -450,6 +400,7 @@ const clickShowDebug = () => {
         }
 
         showDebug.value = true
+        nextTick(() => debugClose.value?.focus())
       } catch (e: any) {
         MsgError(e.toString())
       }
@@ -485,32 +436,6 @@ function getDetail() {
       detail.value.tts_model_id = res.data.tts_model
       detail.value.tts_type = res.data.tts_type
       saveTime.value = res.data?.update_time
-      detail.value.work_flow?.nodes
-        ?.filter((v: any) => v.id === 'base-node')
-        .map((v: any) => {
-          apiInputParams.value = v.properties.api_input_field_list
-            ? v.properties.api_input_field_list.map((v: any) => {
-                return {
-                  name: v.variable,
-                  value: v.default_value,
-                }
-              })
-            : v.properties.input_field_list
-              ? v.properties.input_field_list
-                  .filter((v: any) => v.assignment_method === 'api_input')
-                  .map((v: any) => {
-                    return {
-                      name: v.variable,
-                      value: v.default_value,
-                    }
-                  })
-              : []
-        })
-      loadSharedApi({ type: 'application', systemType: apiType.value })
-        .getAccessToken(id, loading)
-        .then((res: any) => {
-          detail.value = { ...detail.value, ...res.data }
-        })
       workflowRef.value?.clearGraphData()
       nextTick(() => {
         workflowRef.value?.render(detail.value.work_flow)
@@ -528,6 +453,7 @@ function getDetail() {
 }
 
 function saveApplication(bool?: boolean, back?: boolean) {
+  if (workflowRef.value?.isReadOnly()) return
   const obj = {
     work_flow: getGraphData(),
     default_model_setting: detail.value?.default_model_setting || {},
@@ -549,33 +475,7 @@ function saveApplication(bool?: boolean, back?: boolean) {
       loading.value = false
     })
 }
-const go = () => {
-  if (route.path.includes('workspace')) {
-    return router.push({ path: get_route() })
-  } else {
-    return router.push({ path: get_resource_management_route() })
-  }
-}
-
-const get_resource_management_route = () => {
-  if (hasPermission([RoleConst.ADMIN, PermissionConst.RESOURCE_APPLICATION_OVERVIEW_READ], 'OR')) {
-    return `/application/${from}/${id}/WORK_FLOW/overview`
-  } else if (
-    hasPermission([RoleConst.ADMIN, PermissionConst.RESOURCE_APPLICATION_ACCESS_READ], 'OR')
-  ) {
-    return `/application/${from}/${id}/WORK_FLOW/access`
-  } else if (
-    hasPermission([RoleConst.ADMIN, PermissionConst.RESOURCE_APPLICATION_CHAT_USER_READ], 'OR')
-  ) {
-    return `/application/${from}/${id}/WORK_FLOW/chat-user`
-  } else if (
-    hasPermission([RoleConst.ADMIN, PermissionConst.RESOURCE_APPLICATION_CHAT_LOG_READ], 'OR')
-  ) {
-    return `/application/${from}/${id}/WORK_FLOW/chat-log`
-  } else {
-    return `/system/resource-management/application`
-  }
-}
+const go = () => router.push({ path: get_route() })
 
 const get_route = () => {
   if (
@@ -595,62 +495,6 @@ const get_route = () => {
     )
   ) {
     return `/application/${from}/${id}/WORK_FLOW/overview`
-  } else if (
-    hasPermission(
-      [
-        new ComplexPermission(
-          [RoleConst.USER],
-          [PermissionConst.APPLICATION.getApplicationWorkspaceResourcePermission(id)],
-          [EditionConst.IS_EE, EditionConst.IS_PE],
-          'AND',
-        ),
-        new ComplexPermission(
-          [RoleConst.WORKSPACE_MANAGE.getWorkspaceRole],
-          [PermissionConst.APPLICATION_ACCESS_READ.getWorkspacePermissionWorkspaceManageRole],
-          [EditionConst.IS_EE, EditionConst.IS_PE],
-          'OR',
-        ),
-        new ComplexPermission(
-          [],
-          [PermissionConst.APPLICATION_ACCESS_READ.getApplicationWorkspaceResourcePermission(id)],
-          [EditionConst.IS_EE, EditionConst.IS_PE],
-          'OR',
-        ),
-      ],
-      'OR',
-    )
-  ) {
-    return `/application/${from}/${id}/WORK_FLOW/access`
-  } else if (
-    hasPermission(
-      [
-        new ComplexPermission(
-          [RoleConst.USER],
-          [PermissionConst.APPLICATION.getApplicationWorkspaceResourcePermission(id)],
-          [EditionConst.IS_EE, EditionConst.IS_PE],
-          'AND',
-        ),
-        new ComplexPermission(
-          [RoleConst.WORKSPACE_MANAGE.getWorkspaceRole],
-          [PermissionConst.APPLICATION_CHAT_USER_READ.getWorkspacePermissionWorkspaceManageRole],
-          [EditionConst.IS_EE, EditionConst.IS_PE],
-          'OR',
-        ),
-        new ComplexPermission(
-          [],
-          [
-            PermissionConst.APPLICATION_CHAT_USER_READ.getApplicationWorkspaceResourcePermission(
-              id,
-            ),
-          ],
-          [EditionConst.IS_EE, EditionConst.IS_PE],
-          'OR',
-        ),
-      ],
-      'OR',
-    )
-  ) {
-    return `/application/${from}/${id}/WORK_FLOW/chat-user`
   } else if (
     hasPermission(
       [
@@ -688,10 +532,6 @@ const closeInterval = () => {
   }
 }
 
-const templateStoreDialogRef = ref()
-function openTemplateStoreDialog() {
-  templateStoreDialogRef.value?.open()
-}
 
 onMounted(() => {
   getDetail()
@@ -709,84 +549,170 @@ onBeforeUnmount(() => {
   workflowRef.value?.clearGraphData()
 })
 </script>
-<style lang="scss">
+<style lang="scss" scoped>
 .application-workflow {
-  background: var(--app-layout-bg-color);
   height: 100%;
-
-  .workflow-main {
-    height: calc(100vh - 62px);
-    box-sizing: border-box;
-  }
-
-  .workflow-dropdown-tabs {
-    .el-tabs__nav-wrap {
-      padding: 0 16px;
-    }
-  }
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--app-layout-bg-color);
 }
-
-.workflow-debug-container {
-  z-index: 2000;
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  flex: none;
+  gap: 8px 16px;
+  padding: 12px clamp(12px, 2vw, 28px);
+  border-bottom: 1px solid var(--studio-hairline);
+  background: var(--app-header-bg-color);
+}
+.editor-identity, .editor-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+.editor-identity { flex: 1 1 160px; }
+.editor-identity :deep(.el-text) { font-size: 12px; margin-left: 0; }
+.editor-title { max-width: 26rem; font-size: 17px; }
+.editor-actions {
+  flex-wrap: wrap;
+  :deep(.el-button) { margin-left: 0; border-radius: 10px; }
+}
+.workflow-main {
+  flex: 1;
   position: relative;
-  border-radius: 8px;
-  border: 1px solid #ffffff;
-  background: var(--dialog-bg-gradient-color);
-  box-shadow: 0px 4px 8px 0px rgba(var(--el-text-color-primary-rgb), 0.1);
-  position: fixed;
-  bottom: 16px;
-  right: 16px;
+  min-height: 0;
   overflow: hidden;
-  width: 460px;
-  height: 680px;
-
-  .workflow-debug-header {
-    background: var(--app-header-bg-color);
-    height: var(--app-header-height);
-    line-height: var(--app-header-height);
+  > :deep(.workflow-dropdown-menu), > :deep(.workflow-publish-history) {
+    inset-block: 12px auto;
+    inset-inline: auto 12px;
+    max-width: calc(100% - 24px);
+    max-height: calc(100% - 24px);
+    overflow: auto;
     box-sizing: border-box;
-    border-bottom: 1px solid var(--el-border-color);
+    border: 1px solid var(--studio-hairline);
+    border-radius: var(--app-border-radius-large);
+    box-shadow: var(--studio-shadow);
   }
-
-  .scrollbar-height {
-    height: calc(100% - var(--app-header-height) - 24px);
-    padding-top: 24px;
+  > :deep(.workflow-dropdown-menu .el-tabs__nav-wrap) { padding-inline: 12px; }
+  :deep(.workflow-search), :deep(.workflow-search-button) { top: 16px; }
+}
+.workflow-debug-panel {
+  position: fixed;
+  z-index: 2000;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, calc(100vw - 28px));
+  height: min(680px, calc(100dvh - 86px));
+  border: 1px solid var(--studio-hairline);
+  border-radius: 18px;
+  box-sizing: border-box;
+  background: var(--app-view-bg-color);
+  box-shadow: 0 10px 36px rgb(22 75 80 / 14%);
+  overflow: hidden;
+  &.enlarge { width: min(760px, calc(100vw - 28px)); height: calc(100dvh - 28px); }
+}
+.debug-heading {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--studio-hairline);
+  background: var(--app-header-bg-color);
+  .debug-avatar { background: transparent; }
+}
+.debug-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  small {
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--app-text-color-secondary);
   }
-
-  &.enlarge {
-    width: 50% !important;
-    height: 100% !important;
-    bottom: 0 !important;
-    right: 0 !important;
-  }
-
-  .chat-width {
-    max-width: 100% !important;
-    margin: 0 auto;
+  h4 {
+    display: block;
+    max-width: none;
+    margin: 0;
+    font-size: 16px;
+    line-height: 21px;
+    font-weight: 650;
   }
 }
-
-@media only screen and (max-height: 680px) {
-  .workflow-debug-container {
-    height: 600px;
+.debug-close, .debug-resize {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--studio-ink);
+  font-size: 17px;
+  cursor: pointer;
+  &:hover { background: var(--studio-selection); }
+}
+.debug-conversation {
+  flex: 1;
+  min-height: 0;
+  :deep(.ai-chat.debug-ai-chat) { height: 100% !important; }
+  :deep(.ai-chat > .el-scrollbar) { flex: 1; min-height: 0; }
+  :deep(.debug-ai-chat .ai-chat__content) { padding-top: 16px; }
+  :deep(.chat-width) { max-width: 100% !important; }
+  :deep(.debug-ai-chat .question-content > .content) {
+    background: var(--studio-selection);
+    color: var(--studio-ink);
+    border-radius: var(--app-border-radius-large);
+  }
+  :deep(.debug-ai-chat .operate-textarea) {
+    border-color: var(--studio-hairline);
+    border-radius: var(--app-border-radius-large);
+    box-shadow: none;
+  }
+  :deep(.debug-ai-chat .question-content__operate .operate-textarea) {
+    background: var(--studio-selection);
+    color: var(--studio-ink);
+  }
+  :deep(.debug-ai-chat .operate-textarea:has(.el-textarea__inner:focus)) {
+    border-color: var(--studio-ink);
+    box-shadow: inset 0 0 0 1px var(--studio-ink);
+  }
+  :deep(.debug-ai-chat .operate-textarea .el-textarea__inner) {
+    background-color: transparent;
+    border-radius: var(--app-border-radius-large) !important;
+    box-shadow: none;
+    &:focus-visible { outline: none !important; }
   }
 }
-
-.apply-to-all-confirm {
-  .el-message-box__title {
-    justify-content: flex-start;
+@media (max-width: 840px) {
+  .editor-identity { flex-basis: 100%; }
+  .editor-actions { gap: 5px; }
+}
+@media (max-width: 570px) {
+  .editor-header { padding: 8px; }
+  .editor-actions {
+    :deep(.el-button) { padding-inline: 8px; }
+    .model-settings-label { display: none; }
+    .model-settings-trigger :deep(.app-icon) { margin-right: 0 !important; }
   }
-
-  .el-message-box__container {
-    justify-content: flex-start;
+  .workflow-debug-panel, .workflow-debug-panel.enlarge {
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-
-  .el-message-box__content {
-    text-align: left;
-  }
-
-  .el-message-box__btns {
-    justify-content: flex-end;
-  }
+  .debug-resize { display: none; }
 }
 </style>

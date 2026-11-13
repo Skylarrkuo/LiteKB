@@ -1,10 +1,10 @@
 <template>
-  <div class="document p-16-24">
+  <div class="knowledge-data-page">
     <h2 class="mb-16">{{ $t('common.fileUpload.document') }}</h2>
-    <el-card style="--el-card-padding: 0">
-      <div class="main-calc-height">
-        <div class="p-24">
-          <div class="flex-between">
+    <el-card shadow="never">
+      <div>
+        <div class="data-surface">
+          <div class="data-toolbar">
             <div>
               <template v-if="!isShared">
                 <el-button
@@ -17,12 +17,6 @@
                     })
                   "
                   >{{ $t('views.document.uploadDocument') }}
-                </el-button>
-                <el-button
-                  v-if="knowledgeDetail?.type === 1 && permissionPrecise.doc_create(id)"
-                  type="primary"
-                  @click="importDoc"
-                  >{{ $t('views.document.importDocument') }}
                 </el-button>
                 <el-button
                   v-if="knowledgeDetail?.type === 2 && permissionPrecise.doc_create(id)"
@@ -63,8 +57,8 @@
                   >{{ $t('views.document.generateQuestion.title') }}
                 </el-button>
 
-                <el-dropdown v-if="MoreFilledPermission0(id)">
-                  <el-button class="ml-12 mr-12">
+                <el-dropdown trigger="click" v-if="MoreFilledPermission0(id)">
+                  <el-button :aria-label="$t('common.operation')">
                     <AppIcon iconName="app-more"></AppIcon>
                   </el-button>
                   <template #dropdown>
@@ -88,13 +82,6 @@
                         :disabled="multipleSelection.length === 0"
                         v-if="permissionPrecise.doc_tag(id)"
                         >{{ $t('views.document.tag.addTag') }}
-                      </el-dropdown-item>
-                      <el-dropdown-item
-                        divided
-                        @click="syncMulDocument"
-                        :disabled="multipleSelection.length === 0"
-                        v-if="knowledgeDetail?.type === 1 && permissionPrecise.doc_sync(id)"
-                        >{{ $t('views.document.syncDocument') }}
                       </el-dropdown-item>
                       <el-dropdown-item
                         divided
@@ -522,7 +509,7 @@
               :label="$t('common.operation')"
               align="left"
               width="160"
-              fixed="right"
+              :fixed="compactTable ? false : 'right'"
               v-if="!isShared"
             >
               <template #default="{ row }">
@@ -789,13 +776,6 @@
                             {{ $t('common.setting') }}</el-dropdown-item
                           >
                           <el-dropdown-item
-                            @click="syncDocument(row)"
-                            v-if="permissionPrecise.sync(id)"
-                          >
-                            <AppIcon iconName="app-sync" class="color-secondary"></AppIcon>
-                            {{ $t('views.knowledge.setting.sync') }}</el-dropdown-item
-                          >
-                          <el-dropdown-item
                             @click="openTagSettingDrawer(row)"
                             v-if="permissionPrecise.doc_tag(id)"
                           >
@@ -914,6 +894,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { useMediaQuery } from '@vueuse/core'
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue'
 import { useRouter, useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import type { TableInstance } from 'element-plus'
@@ -938,6 +919,7 @@ import ExecutionRecord from '@/views/knowledge-workflow/component/execution-reco
 import UserApi from '@/api/user/user.ts'
 
 const route = useRoute()
+const compactTable = useMediaQuery('(max-width: 760px)')
 const router = useRouter()
 const {
   params: { id, folderId, type }, // id为knowledgeID
@@ -1190,52 +1172,8 @@ const closeInterval = () => {
   }
 }
 
-function syncDocument(row: any) {
-  if (+row.type === 1) {
-    syncWebDocument(row)
-  } else {
-    syncLarkDocument(row)
-  }
-}
 
-function syncLarkDocument(row: any) {
-  MsgConfirm(t('views.document.sync.confirmTitle'), t('views.document.sync.confirmMessage1'), {
-    confirmButtonText: t('views.document.sync.label'),
-    confirmButtonClass: 'danger',
-  })
-    .then(() => {
-      loadSharedApi({ type: 'document', systemType: apiType.value })
-        .putLarkDocumentSync(id, row.id)
-        .then(() => {
-          getList()
-        })
-    })
-    .catch(() => {})
-}
 
-function syncWebDocument(row: any) {
-  if (row.meta?.source_url) {
-    MsgConfirm(t('views.document.sync.confirmTitle'), t('views.document.sync.confirmMessage1'), {
-      confirmButtonText: t('views.document.sync.label'),
-      confirmButtonClass: 'danger',
-    })
-      .then(() => {
-        loadSharedApi({ type: 'document', systemType: apiType.value })
-          .putDocumentSync(row.knowledge_id, row.id)
-          .then(() => {
-            getList()
-          })
-      })
-      .catch(() => {})
-  } else {
-    MsgConfirm(t('common.tip'), t('views.document.sync.confirmMessage2'), {
-      confirmButtonText: t('common.confirm'),
-      type: 'warning',
-    })
-      .then(() => {})
-      .catch(() => {})
-  }
-}
 
 function refreshDocument(row: any) {
   const embeddingDocument = (stateList: Array<string>) => {
@@ -1258,7 +1196,6 @@ function tokenizeDocument(row: any) {
 }
 
 function rowClickHandle(row: any, column: any) {
-  console.log(column)
   if (column && (column.type === 'selection' || column.property === 'tag')) {
     return
   }
@@ -1289,27 +1226,6 @@ function creatQuickHandle(val: string) {
     })
 }
 
-function syncMulDocument() {
-  const arr: string[] = []
-  multipleSelection.value.map((v) => {
-    if (v) {
-      arr.push(v.id)
-    }
-  })
-  MsgConfirm(t('views.document.sync.confirmTitle'), t('views.document.sync.confirmMessage1'), {
-    confirmButtonText: t('views.document.sync.label'),
-    confirmButtonClass: 'danger',
-  })
-    .then(() => {
-      loadSharedApi({ type: 'document', systemType: apiType.value })
-        .putMulSyncDocument(id, arr, loading)
-        .then(() => {
-          MsgSuccess(t('views.document.sync.successMessage'))
-          getList()
-        })
-    })
-    .catch(() => {})
-}
 
 function syncLarkMulDocument() {
   const arr: string[] = []
@@ -1709,15 +1625,6 @@ onBeforeUnmount(() => {
 })
 </script>
 <style lang="scss" scoped>
-.document {
-  .mul-operation {
-    right: 24px;
-    width: calc(100% - var(--sidebar-width) - 48px);
-  }
-  .document-table {
-    :deep(.el-table__row) {
-      cursor: pointer;
-    }
-  }
-}
+@use '../knowledge/detail';
+.document-table :deep(.el-table__row) { cursor: pointer; }
 </style>

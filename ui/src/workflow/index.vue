@@ -1,5 +1,7 @@
 <template>
-  <div className="workflow-app" id="container"></div>
+  <div ref="canvas" class="workflow-app"></div>
+  <el-alert v-if="unavailable.length" class="missing-nodes" type="warning" :closable="false"
+    :title="$t('studio.unavailableNodes') + ' · ' + unavailable.join(', ')" />
   <!-- 辅助工具栏 -->
   <Control class="workflow-control" v-if="lf" :lf="lf"></Control>
   <TeleportContainer :flow-id="flowId"/>
@@ -21,7 +23,10 @@ import {WorkflowMode} from '@/enums/application'
 
 import NodeSearch from '@/workflow/common/NodeSearch.vue'
 
-const nodes: any = import.meta.glob('./nodes/**/index.ts', {eager: true})
+import { disabledGraphNodes } from '@/workflow/capabilities'
+import { t } from '@/locales'
+import { shallowRef } from 'vue'
+import { installedNodes } from '@/workflow/registry'
 const workflow_mode = inject('workflowMode') || WorkflowMode.Application
 const loop_workflow_mode = inject('loopWorkflowMode') || WorkflowMode.ApplicationLoop
 const nodeSearchRef = ref<InstanceType<typeof NodeSearch>>()
@@ -43,19 +48,37 @@ const props = defineProps({
   data: Object || null,
 })
 
+const canvas = ref<HTMLElement>()
 const lf = ref()
+let canvasSize: ResizeObserver | undefined
 onMounted(() => {
   renderGraphData()
+  if (canvas.value) {
+    canvasSize = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (width && height) lf.value?.resize(width, height)
+    })
+    canvasSize.observe(canvas.value)
+  }
 })
 onUnmounted(() => {
+  canvasSize?.disconnect()
   disconnectAll()
 })
+const unavailable = ref<string[]>([])
+const preservedGraph = shallowRef()
 const render = (data: any) => {
-  lf.value.render(data)
+  unavailable.value = disabledGraphNodes(data)
+  preservedGraph.value = unavailable.value.length ? data : undefined
+  lf.value.render(preservedGraph.value ? { nodes: [], edges: [] } : data)
 }
 
 const renderGraphData = (data?: any) => {
-  const container: any = document.querySelector('#container')
+  const container = canvas.value
+  if (lf.value && data) {
+    render(data)
+    return
+  }
   if (container) {
     lf.value = new LogicFlow({
       plugins: [Dagre, SelectionSelect],
@@ -63,13 +86,13 @@ const renderGraphData = (data?: any) => {
       adjustEdge: false,
       adjustEdgeStartAndEnd: false,
       background: {
-        backgroundColor: '#f5f6f7',
+        backgroundColor: 'var(--app-layout-bg-color)',
       },
       grid: {
         size: 10,
         type: 'dot',
         config: {
-          color: '#DEE0E3',
+          color: 'var(--studio-hairline)',
           thickness: 1,
         },
       },
@@ -81,7 +104,7 @@ const renderGraphData = (data?: any) => {
     })
     lf.value.setTheme({
       bezier: {
-        stroke: '#afafaf',
+        stroke: 'var(--app-text-color-secondary)',
         strokeWidth: 1,
       },
     })
@@ -93,14 +116,14 @@ const renderGraphData = (data?: any) => {
     })
     initDefaultShortcut(lf.value, lf.value.graphModel)
     lf.value.batchRegister([
-      ...Object.keys(nodes).map((key) => nodes[key].default),
+      ...installedNodes(),
       AppEdge,
       loopEdge,
     ])
 
     lf.value.setDefaultEdgeType('app-edge')
 
-    lf.value.render(data ? data : {})
+    render(data || {})
     lf.value.graphModel.get_provide = (node: any, graph: any) => {
       return {
         getNode: () => node,
@@ -130,9 +153,11 @@ const renderGraphData = (data?: any) => {
 }
 
 const validate = () => {
+  if (preservedGraph.value) return Promise.reject({ errMessage: t('studio.unavailableNodes') })
   return Promise.all(lf.value.graphModel.nodes.map((element: any) => element?.validate?.()))
 }
 const getGraphData = () => {
+  if (preservedGraph.value) return preservedGraph.value
   const graph_data = lf.value.getGraphData()
   graph_data.nodes.forEach((node: any) => {
     if (node.type === 'loop-body-node') {
@@ -147,6 +172,7 @@ const getGraphData = () => {
 }
 
 const onmousedown = (shapeItem: ShapeItem) => {
+  if (preservedGraph.value) return
   if (shapeItem.type) {
     lf.value.dnd.startDrag({
       type: shapeItem.type,
@@ -159,14 +185,18 @@ const onmousedown = (shapeItem: ShapeItem) => {
   }
 }
 const addNode = (shapeItem: ShapeItem) => {
+  if (preservedGraph.value) return
   lf.value.clearSelectElements()
-  const {virtualRectCenterPositionX, virtualRectCenterPositionY} =
-    lf.value.graphModel.getVirtualRectSize()
+  const { graphModel, container } = lf.value
+  const [x, y] = graphModel.transformModel.HtmlPointToCanvasPoint([
+    container.clientWidth / 2,
+    container.clientHeight / 2,
+  ])
   const newNode = lf.value.graphModel.addNode({
     type: shapeItem.type,
     properties: shapeItem.properties,
-    x: virtualRectCenterPositionX,
-    y: virtualRectCenterPositionY - lf.value.graphModel.height / 2,
+    x,
+    y,
   })
   newNode.isSelected = true
   newNode.isHovered = true
@@ -193,7 +223,7 @@ const highlightNode = (node: any) => {
   const nodeModel = graphModel.getNodeModelById(node.id)
   if (nodeModel) {
     graphModel.selectNodeById(node.id)
-    graphModel.transformModel.focusOn(nodeModel.x, nodeModel.y, nodeModel.width, nodeModel.height)
+    graphModel.transformModel.focusOn(nodeModel.x, nodeModel.y, graphModel.width, graphModel.height)
     return
   }
   // 节点位于 loop-body 内时,定位到所属顶层 loop 节点
@@ -201,7 +231,7 @@ const highlightNode = (node: any) => {
     const loopBody = (topNode.properties?.node_data || {}).loop_body?.nodes || []
     if (loopBody.some((n: any) => n.id === node.id)) {
       graphModel.selectNodeById(topNode.id)
-      graphModel.transformModel.focusOn(topNode.x, topNode.y, topNode.width, topNode.height)
+      graphModel.transformModel.focusOn(topNode.x, topNode.y, graphModel.width, graphModel.height)
       return
     }
   }
@@ -209,6 +239,7 @@ const highlightNode = (node: any) => {
 
 defineExpose({
   onmousedown,
+  isReadOnly: () => Boolean(preservedGraph.value),
   validate,
   getGraphData,
   addNode,
@@ -219,7 +250,10 @@ defineExpose({
   highlightNode,
 })
 </script>
-<style lang="scss">
+<style scoped>
+.missing-nodes { position: absolute; top: 56px; left: 16px; width: auto; max-width: 90%; z-index: 5; }
+</style>
+<style scoped lang="scss">
 .workflow-app {
   width: 100%;
   height: 100%;
@@ -228,12 +262,13 @@ defineExpose({
 
 .workflow-control {
   position: absolute;
-  bottom: 24px;
-  left: 24px;
+  bottom: 16px;
+  left: 16px;
+  max-width: calc(100% - 32px);
   z-index: 2;
 }
 
-.lf-drag-able {
-  cursor: pointer;
+.workflow-app :deep(.lf-drag-able) {
+  cursor: grab;
 }
 </style>

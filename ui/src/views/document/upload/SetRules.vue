@@ -1,7 +1,7 @@
 <template>
   <div class="set-rules">
     <el-row>
-      <el-col :span="10" class="p-24">
+      <el-col :xs="24" :sm="10" class="p-24">
         <h4 class="title-decoration-1 mb-16">{{ $t('views.document.setRules.title.setting') }}</h4>
         <div class="set-rules__right">
           <el-scrollbar>
@@ -109,7 +109,7 @@
         </div>
       </el-col>
 
-      <el-col :span="14" class="p-24 border-l">
+      <el-col :xs="24" :sm="14" class="p-24 border-l">
         <div v-loading="loading">
           <h4 class="title-decoration-1 mb-8">{{ $t('views.document.setRules.title.preview') }}</h4>
 
@@ -260,6 +260,10 @@ defineExpose({
 <style scoped lang="scss">
 .set-rules {
   width: 100%;
+  @media (max-width: 767px) {
+    .el-col { padding: 14px; }
+    .border-l { border-left: 0; border-top: 1px solid var(--studio-hairline); }
+  }
 
   .left-height {
     max-height: calc(var(--create-knowledge-height) - 110px);

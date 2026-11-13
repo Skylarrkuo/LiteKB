@@ -1,6 +1,7 @@
 <template>
   <el-input
     v-model.trim="filterText"
+    :aria-label="$t('common.search')"
     :placeholder="$t('common.search')"
     prefix-icon="Search"
     clearable
@@ -17,11 +18,13 @@
         :persistent="false"
       >
         <template #reference>
-          <div
+          <button
+            type="button"
             class="list-item flex align-center border border-r-6 p-8-12 cursor"
             style="width: calc(50% - 6px)"
             @click.stop="emit('clickNodes', item)"
-            @mousedown.stop="emit('onmousedown', item)"
+            @pointerdown.stop="beginNodeGesture($event, () => emit('onmousedown', item))"
+            @dragstart.prevent
           >
             <el-avatar
               v-if="isAppIcon(item?.icon)"
@@ -40,7 +43,7 @@
               :type="item?.tool_type"
             />
             <span class="ml-8 ellipsis" :title="item.name">{{ item.name }}</span>
-          </div>
+          </button>
         </template>
 
         <template #default>
@@ -83,9 +86,10 @@
 </template>
 
 <script setup lang="ts">
-import { watch, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { isAppIcon, resetUrl } from '@/utils/common'
 import { isWorkFlow } from '@/utils/application'
+import { beginNodeGesture } from './drag'
 
 const props = defineProps<{
   list: any[]
@@ -97,18 +101,9 @@ const emit = defineEmits<{
 }>()
 
 const filterText = ref('')
-const filterList = ref<any[]>([])
-
-function filter(list: any[], filterText: string) {
-  if (!filterText.length) {
-    return list
-  }
-  return list.filter((v: any) => v.name.toLowerCase().includes(filterText.toLowerCase()))
-}
-
-watch([() => filterText.value, () => props.list], () => {
-  filterList.value = filter(props.list, filterText.value)
-})
+const filterList = computed(() =>
+  props.list.filter((item) => item.name.toLowerCase().includes(filterText.value.toLowerCase())),
+)
 </script>
 
 <style lang="scss" scoped></style>

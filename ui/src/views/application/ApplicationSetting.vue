@@ -773,6 +773,7 @@
                 </el-form-item>
 
                 <el-form-item
+                  v-if="mediaEnabled"
                   prop="stt_model_id"
                   :rules="{
                     required: applicationForm.stt_model_enable,
@@ -826,6 +827,7 @@
                   </div>
                 </el-form-item>
                 <el-form-item
+                  v-if="mediaEnabled"
                   prop="tts_model_id"
                   :rules="{
                     required:
@@ -943,6 +945,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { mediaEnabled } from '@/workflow/capabilities'
 import { reactive, ref, onMounted, computed, onBeforeMount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { groupBy, set } from 'lodash'
@@ -1558,8 +1561,10 @@ onBeforeMount(() => {
 onMounted(() => {
   getSelectModel()
   getDetail()
-  getSTTModel()
-  getTTSModel()
+  if (mediaEnabled.value) {
+    getSTTModel()
+    getTTSModel()
+  }
   if (toolPermissionPrecise.value.read()) {
     getToolSelectOptions()
     getMcpToolSelectOptions()

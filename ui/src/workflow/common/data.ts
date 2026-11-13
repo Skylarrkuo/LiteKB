@@ -1,8 +1,8 @@
+import { nodeEnabled } from '@/workflow/capabilities'
 import { WorkflowKind } from './../../enums/application'
 import { WorkflowType, WorkflowMode } from '@/enums/application'
 import i18n, { t } from '@/locales'
 import { watch } from 'vue'
-import call$ from 'dingtalk-jsapi/api/biz/telephone/call'
 
 export const startNode = {
   id: WorkflowType.Start,
@@ -1010,7 +1010,7 @@ const toolMenuNodes = [
     list: [mcpNode, toolNode],
   },
 ]
-export const getMenuNodes = (workflowMode: WorkflowMode) => {
+const availableMenuGroups = (workflowMode: WorkflowMode) => {
   if (workflowMode == WorkflowMode.Application) {
     return menuNodes
   }
@@ -1030,6 +1030,12 @@ export const getMenuNodes = (workflowMode: WorkflowMode) => {
     return toolLoopMenuNodes
   }
 }
+export const getMenuNodes = (mode: WorkflowMode) =>
+  (availableMenuGroups(mode) || []).map(group => ({
+    ...group,
+    list: group.list.filter(node => nodeEnabled(node.type)),
+  })).filter(group => group.list.length)
+
 export const workflowModelDict: any = {
   [WorkflowMode.Application]: (node: any) => {
     return (

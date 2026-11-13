@@ -1,15 +1,14 @@
 <template>
   <el-dialog
-    :title="
-      isWorkFlow(applicationForm.type)
-        ? $t('views.application.createWorkFlowApplication')
-        : $t('views.application.createApplication')
-    "
+    :title="$t('views.application.createAgent')"
+    class="agent-create-dialog"
     v-model="dialogVisible"
-    width="650"
+    width="min(640px, calc(100vw - 24px))"
+    align-center
+    :show-close="!loading"
     append-to-body
     :close-on-click-modal="false"
-    :close-on-press-escape="false"
+    :close-on-press-escape="!loading"
   >
     <el-form
       ref="applicationFormRef"
@@ -17,8 +16,21 @@
       :rules="rules"
       label-position="top"
       require-asterisk-position="right"
-      @submit.prevent
+      :disabled="loading"
+      @submit.prevent="submitHandle(applicationFormRef)"
     >
+      <fieldset v-if="!work_flow_template" class="choice-group agent-type-choice">
+        <legend>{{ $t('common.type') }}</legend>
+        <div class="choice-grid">
+          <label class="choice" v-for="option in agentTypes" :key="option.value">
+            <input type="radio" name="agent-type" v-model="applicationForm.type" :value="option.value" :disabled="loading" />
+            <span class="choice-copy">
+              <strong>{{ $t(option.label) }}</strong>
+              <small>{{ $t(option.description) }}</small>
+            </span>
+          </label>
+        </div>
+      </fieldset>
       <el-form-item :label="$t('common.name')" prop="name">
         <el-input
           v-model="applicationForm.name"
@@ -39,46 +51,20 @@
         />
       </el-form-item>
 
-      <el-form-item
-        :label="$t('views.document.upload.template')"
-        v-if="applicationForm.type === 'WORK_FLOW' && !work_flow_template"
-      >
-        <div class="w-full">
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-card
-                class="template-radio-card cursor text-center flex-center"
-                shadow="never"
-                @click="selectedType('blank')"
-                :class="appTemplate === 'blank' ? 'border-active' : ''"
-              >
-                <div class="flex-center p-24">
-                  <AppIcon iconName="app-add-outlined" class="mr-12"></AppIcon>
-                  {{ $t('views.application.form.appTemplate.blankApp.title') }}
-                </div>
-              </el-card>
-            </el-col>
-            <el-col :span="12">
-              <CardBox
-                :title="$t('views.application.form.appTemplate.assistantApp.title')"
-                :description="$t('views.application.form.appTemplate.assistantApp.description')"
-                shadow="never"
-                class="template-radio-card cursor"
-                :class="appTemplate === 'assistant' ? 'border-active' : ''"
-                @click="selectedType('assistant')"
-              >
-                <template #icon>
-                  <LogoIcon height="32px" />
-                </template>
-              </CardBox>
-            </el-col>
-          </el-row>
+      <fieldset v-if="applicationForm.type === 'WORK_FLOW' && !work_flow_template" class="choice-group template-choice">
+        <legend>{{ $t('views.document.upload.template') }}</legend>
+        <div class="choice-grid">
+          <label class="choice" v-for="option in templates" :key="option.value">
+            <input type="radio" name="agent-template" v-model="appTemplate" :value="option.value" :disabled="loading" />
+            <span>{{ $t(option.label) }}</span>
+          </label>
         </div>
-      </el-form-item>
+        <p v-if="appTemplate === 'assistant'" class="choice-hint">{{ $t('views.application.form.appTemplate.assistantApp.description') }}</p>
+      </fieldset>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click.prevent="dialogVisible = false" :loading="loading">
+        <el-button @click.prevent="dialogVisible = false" :disabled="loading">
           {{ $t('common.cancel') }}
         </el-button>
         <el-button type="primary" @click="submitHandle(applicationFormRef)" :loading="loading">
@@ -89,14 +75,14 @@
   </el-dialog>
 </template>
 <script setup lang="ts">
-import { ref, watch, reactive } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import type { ApplicationFormType } from '@/api/type/application'
 import type { FormInstance, FormRules } from 'element-plus'
 import applicationApi from '@/api/application/application'
-import { MsgSuccess, MsgAlert } from '@/utils/message'
+import { MsgSuccess } from '@/utils/message'
 import { isWorkFlow } from '@/utils/application'
-import { baseNodes } from '@/workflow/common/data'
+import { cloneDeep } from 'lodash'
 import { applicationTemplate } from '@/workflow/common/template'
 import { t } from '@/locales'
 import useStore from '@/stores'
@@ -116,10 +102,14 @@ const optimizationPrompt =
   '<data></data>' +
   t('views.application.dialog.defaultPrompt2')
 
-const workflowDefault = ref<any>({
-  edges: [],
-  nodes: baseNodes,
-})
+const agentTypes = [
+  { value: 'SIMPLE', label: 'views.application.simpleAgent', description: 'views.application.simpleBrief' },
+  { value: 'WORK_FLOW', label: 'views.application.workflowAgent', description: 'views.application.workflowBrief' },
+]
+const templates = [
+  { value: 'blank', label: 'views.application.form.appTemplate.blankApp.title' },
+  { value: 'assistant', label: 'views.application.form.appTemplate.assistantApp.title' },
+]
 const appTemplate = ref('blank')
 
 const applicationFormRef = ref()
@@ -128,39 +118,41 @@ const loading = ref(false)
 const dialogVisible = ref<boolean>(false)
 const work_flow_template = ref()
 
-const applicationForm = ref<ApplicationFormType>({
-  name: '',
-  desc: '',
-  model_id: undefined,
-  dialogue_number: 1,
-  prologue: t('views.application.form.defaultPrologue'),
-  knowledge_id_list: [],
-  knowledge_setting: {
-    top_n: 3,
-    similarity: 0.6,
-    max_paragraph_char_number: 5000,
-    search_mode: 'embedding',
-    no_references_setting: {
-      status: 'ai_questioning',
-      value: '{question}',
+function newForm(type = 'SIMPLE'): ApplicationFormType {
+  return {
+    name: '',
+    desc: '',
+    model_id: undefined,
+    dialogue_number: 1,
+    prologue: t('views.application.form.defaultPrologue'),
+    knowledge_id_list: [],
+    knowledge_setting: {
+      top_n: 3,
+      similarity: 0.6,
+      max_paragraph_char_number: 5000,
+      search_mode: 'embedding',
+      no_references_setting: {
+        status: 'ai_questioning',
+        value: '{question}',
+      },
     },
-  },
-  model_setting: {
-    prompt: defaultPrompt,
-    system: '',
-    no_references_prompt: '{question}',
-  },
-  model_params_setting: {},
-  problem_optimization: false,
-  problem_optimization_prompt: optimizationPrompt,
-  stt_model_id: undefined,
-  tts_model_id: undefined,
-  stt_model_enable: false,
-  tts_model_enable: false,
-  tts_type: 'BROWSER',
-  type: 'SIMPLE',
-  work_flow_template: undefined,
-})
+    model_setting: {
+      prompt: defaultPrompt,
+      system: '',
+      no_references_prompt: '{question}',
+    },
+    model_params_setting: {},
+    problem_optimization: false,
+    problem_optimization_prompt: optimizationPrompt,
+    stt_model_id: undefined,
+    tts_model_id: undefined,
+    stt_model_enable: false,
+    tts_model_enable: false,
+    tts_type: 'BROWSER',
+    type,
+  }
+}
+const applicationForm = ref<ApplicationFormType>(newForm())
 
 const rules = reactive<FormRules<ApplicationFormType>>({
   name: [
@@ -181,98 +173,63 @@ const rules = reactive<FormRules<ApplicationFormType>>({
 
 const currentFolder = ref('')
 
-watch(dialogVisible, (bool) => {
-  if (!bool) {
-    applicationForm.value = {
-      name: '',
-      desc: '',
-      model_id: undefined,
-      dialogue_number: 1,
-      prologue: t('views.application.form.defaultPrologue'),
-      knowledge_id_list: [],
-      knowledge_setting: {
-        top_n: 3,
-        similarity: 0.6,
-        max_paragraph_char_number: 5000,
-        search_mode: 'embedding',
-        no_references_setting: {
-          status: 'ai_questioning',
-          value: '{question}',
-        },
-      },
-      model_setting: {
-        prompt: defaultPrompt,
-        system: '',
-        no_references_prompt: '{question}',
-      },
-      model_params_setting: {},
-      problem_optimization: false,
-      problem_optimization_prompt: optimizationPrompt,
-      stt_model_id: undefined,
-      tts_model_id: undefined,
-      stt_model_enable: false,
-      tts_model_enable: false,
-      tts_type: 'BROWSER',
-      type: 'SIMPLE',
-    }
-    applicationFormRef.value?.clearValidate()
-  }
-})
-
 const open = (folder: string, type?: string, work_flow?: any) => {
   currentFolder.value = folder
-  applicationForm.value.type = type || 'SIMPLE'
-  dialogVisible.value = true
+  appTemplate.value = 'blank'
+  applicationForm.value = newForm(type)
   work_flow_template.value = work_flow
+  applicationFormRef.value?.clearValidate()
+  dialogVisible.value = true
 }
 
 const submitHandle = async (formEl: FormInstance | undefined) => {
-  if (!formEl) return
-  await formEl.validate((valid) => {
-    if (valid) {
-      if (isWorkFlow(applicationForm.value.type)) {
-        workflowDefault.value.nodes[0].properties.node_data.desc = applicationForm.value.desc
-        workflowDefault.value.nodes[0].properties.node_data.name = applicationForm.value.name
-        applicationForm.value['work_flow'] = workflowDefault.value
-        if (work_flow_template.value) {
-          applicationForm.value['work_flow_template'] = work_flow_template.value
-        }
-      }
-      loading.value = true
-      applicationApi
-        .postApplication({ ...applicationForm.value, folder_id: currentFolder.value })
-        .then((res) => {
-          return user.profile().then(() => {
-            MsgSuccess(t('common.createSuccess'))
-            emit('refresh')
-            if (isWorkFlow(applicationForm.value.type)) {
-              router.push({ path: `/application/workspace/${res.data.id}/workflow` })
-            } else {
-              router.push({
-                path: `/application/workspace/${res.data.id}/${res.data.type}/setting`,
-              })
-            }
-            dialogVisible.value = false
-          })
-        })
-
-        .finally(() => {
-          loading.value = false
-        })
+  if (!formEl || loading.value) return
+  loading.value = true
+  try {
+    if (!(await formEl.validate().catch(() => false))) return
+    const payload = { ...applicationForm.value, folder_id: currentFolder.value }
+    if (isWorkFlow(payload.type)) {
+      const graph = cloneDeep(applicationTemplate[appTemplate.value])
+      Object.assign(graph.nodes[0].properties.node_data, { name: payload.name, desc: payload.desc })
+      payload.work_flow = graph
+      if (work_flow_template.value) payload.work_flow_template = work_flow_template.value
     }
-  })
-}
-
-function selectedType(type: string) {
-  appTemplate.value = type
-  workflowDefault.value = applicationTemplate[type]
+    const { data } = await applicationApi.postApplication(payload)
+    dialogVisible.value = false
+    emit('refresh')
+    MsgSuccess(t('common.createSuccess'))
+    await user.profile()
+    const next = isWorkFlow(payload.type) ? 'workflow' : `${data.type}/setting`
+    await router.push(`/application/workspace/${data.id}/${next}`)
+  } finally {
+    loading.value = false
+  }
 }
 
 defineExpose({ open })
 </script>
 <style lang="scss" scoped>
-.template-radio-card {
-  height: 120px !important;
-  min-height: 120px !important;
+.choice-group { min-width: 0; margin: 0 0 18px; padding: 0; border: 0; }
+.choice-group legend { margin-bottom: 8px; padding: 0; font-size: 14px; font-weight: 550; }
+.choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.choice {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px; border: 1px solid var(--studio-hairline);
+  border-radius: 12px; background: var(--app-view-bg-color); cursor: pointer;
+  &:has(input:checked) { border-color: var(--studio-ink); background: var(--studio-selection); }
+  &:has(input:focus-visible) { outline: 2px solid var(--studio-ink); outline-offset: 2px; }
+  input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--studio-ink); }
+  input:focus-visible { outline: none !important; }
+}
+.choice-copy { display: grid; gap: 4px; line-height: 1.4; }
+.choice-copy strong { font-size: 14px; color: var(--studio-ink); }
+.choice-copy small, .choice-hint { color: var(--app-text-color-secondary); font-size: 12px; }
+.choice-hint { margin: 8px 0 0; }
+.template-choice { margin-bottom: 0; }
+.template-choice .choice { padding-block: 10px; align-items: center; }
+@media (max-width: 540px) {
+  .agent-type-choice .choice-grid { grid-template-columns: 1fr; }
+  .choice { padding: 10px 12px; }
+  .choice-copy { gap: 2px; }
 }
 </style>

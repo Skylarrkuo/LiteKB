@@ -678,41 +678,6 @@ export const knowledgeTemplate: any = {
         targetAnchorId: 'ade860cd-db62-4538-9943-c8f42c1b927e_left',
       },
       {
-        id: 'd04c1570-6572-4505-bf84-f29d81c30e57',
-        type: 'app-edge',
-        endPoint: {
-          x: 1790,
-          y: 1440,
-        },
-        pointsList: [
-          {
-            x: 1490,
-            y: 2190,
-          },
-          {
-            x: 1600,
-            y: 2190,
-          },
-          {
-            x: 1680,
-            y: 1440,
-          },
-          {
-            x: 1790,
-            y: 1440,
-          },
-        ],
-        properties: {},
-        startPoint: {
-          x: 1490,
-          y: 2190,
-        },
-        sourceNodeId: 'dddebd93-ea1a-4880-8a52-ea8112f7e769',
-        targetNodeId: 'ade860cd-db62-4538-9943-c8f42c1b927e',
-        sourceAnchorId: 'dddebd93-ea1a-4880-8a52-ea8112f7e769_right',
-        targetAnchorId: 'ade860cd-db62-4538-9943-c8f42c1b927e_left',
-      },
-      {
         id: '536d7d47-9ad8-4144-a6df-35e3e2398327',
         type: 'app-edge',
         endPoint: {
@@ -746,41 +711,6 @@ export const knowledgeTemplate: any = {
         targetNodeId: '1c5abed5-e181-41f7-96f5-b5175cc37f3c',
         sourceAnchorId: 'ade860cd-db62-4538-9943-c8f42c1b927e_right',
         targetAnchorId: '1c5abed5-e181-41f7-96f5-b5175cc37f3c_left',
-      },
-      {
-        id: '8b5bb2b5-5baa-4e54-b848-fa87231d9585',
-        type: 'app-edge',
-        endPoint: {
-          x: 1010,
-          y: 2190,
-        },
-        pointsList: [
-          {
-            x: 870,
-            y: 2190,
-          },
-          {
-            x: 980,
-            y: 2190,
-          },
-          {
-            x: 900,
-            y: 2190,
-          },
-          {
-            x: 1010,
-            y: 2190,
-          },
-        ],
-        properties: {},
-        startPoint: {
-          x: 870,
-          y: 2190,
-        },
-        sourceNodeId: '08503db8-f2e3-4eb3-96f7-957f30a6da6e',
-        targetNodeId: 'dddebd93-ea1a-4880-8a52-ea8112f7e769',
-        sourceAnchorId: '08503db8-f2e3-4eb3-96f7-957f30a6da6e_right',
-        targetAnchorId: 'dddebd93-ea1a-4880-8a52-ea8112f7e769_left',
       },
     ],
     nodes: [
@@ -863,49 +793,6 @@ export const knowledgeTemplate: any = {
           condition: 'OR',
           node_data: {
             document_list: ['768aed24-8139-4689-870f-2065ef05473c', 'file_list'],
-          },
-        },
-      },
-      {
-        x: 1250,
-        y: 2190,
-        id: 'dddebd93-ea1a-4880-8a52-ea8112f7e769',
-        type: 'document-split-node',
-        properties: {
-          width: 500,
-          config: {
-            fields: [
-              {
-                label: '\u5206\u6bb5\u5217\u8868',
-                value: 'paragraph_list',
-              },
-            ],
-          },
-          height: 652,
-          showNode: true,
-          stepName: 'Web\u667a\u80fd\u5206\u6bb5',
-          condition: 'AND',
-          node_data: {
-            limit: 4096,
-            patterns: [],
-            chunk_size: 256,
-            limit_type: 'custom',
-            with_filter: false,
-            document_list: ['08503db8-f2e3-4eb3-96f7-957f30a6da6e', 'document_list'],
-            patterns_type: 'custom',
-            split_strategy: 'auto',
-            chunk_size_type: 'custom',
-            limit_reference: [],
-            with_filter_type: 'custom',
-            patterns_reference: [],
-            chunk_size_reference: [],
-            with_filter_reference: [],
-            document_name_relate_problem: false,
-            paragraph_title_relate_problem: true,
-            document_name_relate_problem_type: 'custom',
-            paragraph_title_relate_problem_type: 'custom',
-            document_name_relate_problem_reference: [],
-            paragraph_title_relate_problem_reference: [],
           },
         },
       },
@@ -1103,34 +990,10 @@ export const knowledgeTemplate: any = {
                     v_id: 'IRQkWPB7THGXlkSBCWmkY',
                     variable: ['a1d0fa5d-4779-4364-8b54-7eff69bd1ec4', 'paragraph_list'],
                   },
-                  {
-                    v_id: 'jGrIINd-6O6UEzNmZvFap',
-                    variable: ['dddebd93-ea1a-4880-8a52-ea8112f7e769', 'paragraph_list'],
-                  },
                 ],
               },
             ],
           },
-        },
-      },
-      {
-        x: 710,
-        y: 2190,
-        id: '08503db8-f2e3-4eb3-96f7-957f30a6da6e',
-        type: 'data-source-web-node',
-        properties: {
-          kind: 'data-source',
-          config: {
-            fields: [
-              {
-                label: '\u6587\u6863\u5217\u8868',
-                value: 'document_list',
-              },
-            ],
-          },
-          height: 292,
-          showNode: true,
-          stepName: 'Web\u7ad9\u70b9',
         },
       },
     ],

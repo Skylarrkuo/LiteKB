@@ -1,8 +1,9 @@
 <template>
-  <div class="paragraph p-12-24">
-    <div class="flex align-center" style="width: 78%">
+  <div class="paragraph">
+    <header class="paragraph-heading">
+    <div class="document-title">
       <back-button to="-1" style="margin-left: -4px"></back-button>
-      <h3 style="display: inline-block">{{ documentDetail?.name }}</h3>
+      <h2 :title="documentDetail?.name">{{ documentDetail?.name }}</h2>
       <el-text type="info" v-if="documentDetail?.type == 1"
         >（{{ $t('views.document.form.source_url.label') }}：<el-link
           :href="documentDetail?.meta?.source_url"
@@ -23,18 +24,18 @@
         {{ $t('views.paragraph.addParagraph') }}
       </el-button>
     </div>
-    <el-card
-      style="--el-card-padding: 0"
-      class="paragraph__main mt-16"
+    </header>
+    <el-card shadow="never"
+      class="paragraph__main"
       v-loading="(paginationConfig.current_page === 1 && loading) || changeStateloading"
     >
-      <div class="flex-between p-12-16 border-b">
+      <div class="paragraph-filter">
         <span>{{ paginationConfig.total }} {{ $t('views.paragraph.paragraph_count') }}</span>
         <el-input
           v-model="search"
           :placeholder="$t('common.search')"
           class="input-with-select"
-          style="width: 260px"
+          :aria-label="$t('common.search')"
           @change="searchHandle"
           clearable
         >
@@ -51,15 +52,15 @@
           </template>
         </el-input>
       </div>
-      <LayoutContainer showCollapse>
+      <LayoutContainer showCollapse :navigation-label="$t('views.paragraph.title')">
         <template #left>
           <div class="paragraph-sidebar p-16">
             <el-scrollbar class="paragraph-scrollbar">
               <el-anchor
                 direction="vertical"
                 type="default"
-                :offset="130"
-                container=".paragraph-scrollbar"
+                :offset="12"
+                container=".paragraph-reader .el-scrollbar__wrap"
                 @click="handleClick"
               >
                 <template v-for="item in paragraphDetail" :key="item.id">
@@ -73,10 +74,9 @@
             </el-scrollbar>
           </div>
         </template>
-        <div class="w-full">
+        <div class="paragraph-reader">
           <el-empty v-if="paragraphDetail.length == 0" :description="$t('common.noData')" />
-          <div v-else>
-            <el-scrollbar class="paragraph-scrollbar">
+          <el-scrollbar v-else class="paragraph-scrollbar">
               <div class="paragraph-detail">
                 <el-checkbox-group v-model="multipleSelection">
                   <InfiniteScroll
@@ -96,7 +96,7 @@
                         dialogVisible ||
                         !permissionPrecise.doc_edit(id)
                       "
-                      handle=".handle"
+                      handle=".handle-img"
                       :animation="150"
                       ghostClass="ghost"
                       @end="onEnd"
@@ -105,7 +105,7 @@
                         <div :id="`m${item.id}`" class="flex mb-16">
                           <!-- 批量操作 -->
                           <div class="paragraph-card flex w-full" v-if="isBatch === true">
-                            <el-checkbox :value="item.id" />
+                            <el-checkbox :value="item.id" :aria-label="item.title || $t('views.paragraph.title')" />
                             <ParagraphCard
                               :data="item"
                               class="mb-8 w-full"
@@ -119,6 +119,7 @@
                           <!-- 非批量操作 -->
                           <div class="handle paragraph-card flex w-full" :id="item.id" v-else>
                             <img
+                              v-if="!shareDisabled && permissionPrecise.doc_edit(id)"
                               src="@/assets/sort.svg"
                               alt=""
                               height="15"
@@ -156,8 +157,7 @@
                   </InfiniteScroll>
                 </el-checkbox-group>
               </div>
-            </el-scrollbar>
-          </div>
+          </el-scrollbar>
         </div>
         <div class="mul-operation border-t w-full" v-if="isBatch === true">
           <div class="flex align-center" style="max-width: 1000px; margin: auto; flex-grow: 1">
@@ -232,8 +232,8 @@ const {
   query: { from, isShared },
 } = route as any
 
-const apiType = computed(() => {
-  return from as 'systemShare' | 'workspace' | 'systemManage'
+const apiType = computed<'systemShare' | 'workspace' | 'systemManage'>(() => {
+  return from === 'systemShare' || from === 'systemManage' ? from : 'workspace'
 })
 const shareDisabled = computed(() => {
   return isShared === 'true'
@@ -289,7 +289,7 @@ function dialogVisibleChange(val: boolean) {
 
 const handleClick = (e: MouseEvent, ele: any) => {
   e.preventDefault()
-  document.querySelector(`${ele}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  document.querySelector(`${ele}`)?.scrollIntoView({ block: 'nearest' })
 }
 
 // 批量操作
@@ -333,9 +333,9 @@ function deleteParagraph(id: string) {
   paragraphDetail.value.splice(index, 1)
 }
 
-function changeState(id: string) {
-  const index = paragraphDetail.value.findIndex((v) => v.id === id)
-  paragraphDetail.value[index].is_active = !paragraphDetail.value[index].is_active
+function changeState(id: string, active: boolean) {
+  const paragraph = paragraphDetail.value.find((item) => item.id === id)
+  if (paragraph) paragraph.is_active = active
 }
 
 function refreshMigrateParagraph(data: any) {
@@ -486,50 +486,71 @@ onMounted(() => {
 </script>
 <style lang="scss" scoped>
 .paragraph {
-  position: relative;
-  .header-button {
-    position: absolute;
-    right: calc(var(--app-base-px) * 3);
-    top: calc(var(--app-base-px) + 4px);
+  height: 100%;
+  overflow: auto;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 16px clamp(14px, 2.4vw, 32px);
+  gap: 14px;
+}
+.paragraph-heading, .document-title, .header-button, .paragraph-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.paragraph-heading, .paragraph-filter {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.document-title { min-width: 0; flex: 1; }
+.document-title h2 { font-size: 20px; line-height: 1.35; overflow-wrap: anywhere; color: var(--studio-ink); }
+.header-button { flex-wrap: wrap; .el-button { margin: 0; } }
+.paragraph-filter {
+  border-bottom: 1px solid var(--studio-hairline);
+  padding: 12px clamp(12px, 2vw, 20px);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text-color-secondary);
+  .input-with-select { width: min(260px, 100%); }
+}
+.paragraph__main {
+  --el-card-padding: 0;
+  flex: 1;
+  min-height: 250px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-large);
+  box-shadow: var(--studio-shadow);
+  :deep(> .el-card__body), :deep(.layout-container__right) {
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
-  .paragraph-sidebar {
-    width: 100%;
-    height: calc(100vh - 215px);
-    box-sizing: border-box;
+  :deep(.layout-container) { flex: 1; height: auto; min-height: 0; }
+  .paragraph-sidebar, .paragraph-reader { width: 100%; height: 100%; box-sizing: border-box; min-height: 0; }
+  .paragraph-reader { flex: 1; }
+  :deep(.el-anchor) { background: transparent; }
+  :deep(.el-anchor__link.is-active) { color: var(--studio-ink); font-weight: 600; }
+  .mul-operation {
+    position: static; margin: 0; width: 100%; padding: 10px 12px;
+    > div { flex-wrap: wrap; gap: 8px; > * { margin: 0; } }
   }
-
-  .paragraph-detail {
-    height: calc(100vh - 215px);
-    max-width: 1000px;
-    margin: 16px auto;
-
-    .el-checkbox-group {
-      font-size: inherit;
-      line-height: inherit;
-    }
-  }
-
-  &__main {
-    position: relative;
-    box-sizing: border-box;
-    .mul-operation {
-      position: absolute;
-    }
-  }
-  .paragraph-card {
-    .is-selected {
-      border: 1px solid var(--el-color-primary);
-    }
-    &.handle {
-      .handle-img {
-        visibility: hidden;
-      }
-      &:hover {
-        .handle-img {
-          visibility: visible;
-        }
-      }
-    }
-  }
+}
+.paragraph-detail {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px;
+  box-sizing: border-box;
+  .el-checkbox-group { font-size: inherit; line-height: inherit; }
+  .paragraph-card { min-width: 0; align-items: flex-start; }
+  .is-selected { border-color: var(--studio-ink); background: var(--studio-selection); }
+  .handle-img { cursor: grab; }
+}
+@media (max-width: 760px) {
+  .paragraph { padding-block: 12px; }
+  .document-title { flex-basis: 100%; }
+  .paragraph__main .paragraph-sidebar { max-height: 22dvh; }
+  .paragraph-detail { padding: 10px; }
 }
 </style>

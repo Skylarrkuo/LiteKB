@@ -1,99 +1,45 @@
 <template>
-  <el-card shadow="always" style="--el-card-padding: 8px 12px; --el-card-border-radius: 8px">
-    <el-button
-      @click="changeCursor(true)"
-      style="border: none; padding: 4px; height: 24px"
-      :class="{ 'is-drag-active': isDrag }"
-    >
-      <el-icon :size="16"><Position /></el-icon>
-    </el-button>
-    <el-button
-      @click="changeCursor(false)"
-      style="border: none; padding: 4px; height: 24px; margin-left: 8px"
-      :class="{ 'is-drag-active': !isDrag }"
-    >
-      <AppIcon iconName="app-raisehand" :size="16"></AppIcon>
-    </el-button>
+  <div class="canvas-tools" role="group" :aria-label="$t('common.operation')">
+    <button type="button" :aria-label="t('selectNodes')" :title="t('selectNodes')" :aria-pressed="isDrag" @click="changeCursor(true)">
+      <el-icon><Position /></el-icon>
+    </button>
+    <button type="button" :aria-label="t('panCanvas')" :title="t('panCanvas')" :aria-pressed="!isDrag" @click="changeCursor(false)">
+      <AppIcon iconName="app-raisehand" :size="16" />
+    </button>
     <el-divider direction="vertical" />
-    <el-button link @click="zoomOut" style="border: none">
-      <el-tooltip
-        effect="dark"
-        :content="$t('workflow.control.zoomOut')"
-        placement="top"
-      >
-        <el-icon :size="16" :title="$t('workflow.control.zoomOut')"
-          ><ZoomOut
-        /></el-icon>
-      </el-tooltip>
-    </el-button>
-    <el-button link @click="zoomIn" style="border: none">
-      <el-tooltip
-        effect="dark"
-        :content="$t('workflow.control.zoomIn')"
-        placement="top"
-      >
-        <el-icon :size="16" :title="$t('workflow.control.zoomIn')"
-          ><ZoomIn
-        /></el-icon>
-      </el-tooltip>
-    </el-button>
-    <el-button link @click="fitView" style="border: none">
-      <el-tooltip
-        effect="dark"
-        :content="$t('workflow.control.fitView')"
-        placement="top"
-      >
-        <AppIcon
-          iconName="app-fitview"
-          :title="$t('workflow.control.fitView')"
-        ></AppIcon>
-      </el-tooltip>
-    </el-button>
+    <button type="button" :aria-label="$t('workflow.control.zoomOut')" :title="$t('workflow.control.zoomOut')" @click="zoomOut">
+      <el-icon><ZoomOut /></el-icon>
+    </button>
+    <button type="button" :aria-label="$t('workflow.control.zoomIn')" :title="$t('workflow.control.zoomIn')" @click="zoomIn">
+      <el-icon><ZoomIn /></el-icon>
+    </button>
+    <button type="button" :aria-label="$t('workflow.control.fitView')" :title="$t('workflow.control.fitView')" @click="fitView">
+      <AppIcon iconName="app-fitview" />
+    </button>
     <el-divider direction="vertical" />
-    <el-button link @click="retract" style="border: none">
-      <el-tooltip
-        effect="dark"
-        :content="$t('workflow.control.retract')"
-        placement="top"
-      >
-        <AppIcon
-          style="font-size: 16px"
-          iconName="app-retract"
-          :title="$t('workflow.control.retract')"
-        ></AppIcon>
-      </el-tooltip>
-    </el-button>
-    <el-button link @click="extend" style="border: none">
-      <el-tooltip
-        effect="dark"
-        :content="$t('workflow.control.extend')"
-        placement="top"
-      >
-        <AppIcon
-          style="font-size: 16px"
-          iconName="app-extend"
-          :title="$t('workflow.control.extend')"
-        ></AppIcon>
-      </el-tooltip>
-    </el-button>
-    <el-button link @click="layout" style="border: none">
-      <el-tooltip
-        effect="dark"
-        :content="$t('workflow.control.beautify')"
-        placement="top"
-      >
-        <AppIcon
-          style="font-size: 16px"
-          iconName="app-beautify"
-          :title="$t('workflow.control.beautify')"
-        ></AppIcon>
-      </el-tooltip>
-    </el-button>
-  </el-card>
+    <button type="button" :aria-label="$t('workflow.control.retract')" :title="$t('workflow.control.retract')" @click="retract">
+      <AppIcon iconName="app-retract" />
+    </button>
+    <button type="button" :aria-label="$t('workflow.control.extend')" :title="$t('workflow.control.extend')" @click="extend">
+      <AppIcon iconName="app-extend" />
+    </button>
+    <button type="button" :aria-label="$t('workflow.control.beautify')" :title="$t('workflow.control.beautify')" @click="layout">
+      <AppIcon iconName="app-beautify" />
+    </button>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    'zh-CN': { selectNodes: '框选节点', panCanvas: '移动画布' },
+    'zh-Hant': { selectNodes: '框選節點', panCanvas: '移動畫布' },
+    'en-US': { selectNodes: 'Select nodes', panCanvas: 'Pan canvas' },
+  },
+})
 const props = defineProps({
   lf: Object || String || null,
 })
@@ -130,21 +76,48 @@ const extend = () => {
   })
 }
 const changeCursor = (bool: boolean) => {
-  const element: HTMLElement = document.querySelector('.lf-drag-able') as HTMLElement
+  const element = props.lf?.container.querySelector('.lf-drag-able')
   isDrag.value = bool
   if (bool) {
-    element.style.cursor = 'default'
+    if (element) element.style.cursor = 'crosshair'
     props.lf?.openSelectionSelect()
     props.lf?.extension.selectionSelect.setSelectionSense(true, false)
   } else {
-    element.style.cursor = 'pointer'
+    if (element) element.style.cursor = 'grab'
     props.lf?.closeSelectionSelect()
   }
 }
 </script>
 <style scoped lang="scss">
-.is-drag-active {
-  background-color: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+.canvas-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  box-sizing: border-box;
+  padding: 5px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 14px;
+  background: var(--app-view-bg-color);
+  box-shadow: var(--studio-shadow);
+  overflow-x: auto;
+  button {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    color: var(--studio-ink);
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+    &:hover { background: var(--studio-selection); }
+    &[aria-pressed='true'] { background: var(--studio-ink); color: var(--studio-mint); }
+    &:focus-visible { outline-offset: -2px; }
+  }
+  :deep(.el-divider) { margin-inline: 4px; }
 }
 </style>

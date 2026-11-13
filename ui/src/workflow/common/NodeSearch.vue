@@ -4,8 +4,7 @@
     <el-card
       class="workflow-search"
       v-if="showSearch"
-      shadow="always"
-      style="--el-card-padding: 8px 12px; --el-card-border-radius: 8px"
+      shadow="never"
     >
       <div class="workflow-search-container flex-between">
         <el-input
@@ -13,6 +12,7 @@
           v-bind:modelValue="searchText"
           @update:modelValue="handleSearch"
           :placeholder="$t('workflow.tip.searchPlaceholder')"
+          :aria-label="$t('common.search')"
           clearable
           @keyup.enter="next"
           @keyup.esc="closeSearch"
@@ -24,21 +24,20 @@
               {{ currentIndex + 1 }}/{{ selectedCount }}
             </span>
             <span
-              class="lighter color-secondary"
-              style="width: 42px"
+              class="lighter color-secondary search-empty"
               v-else-if="searchText.length > 0"
             >
-              无结果
+              {{ $t('common.noData') }}
             </span>
             <el-divider direction="vertical" />
 
-            <el-button text>
-              <el-icon @click="up"><ArrowUp /></el-icon>
+            <el-button text :disabled="!selectedCount" :aria-label="$t('common.pages.prev')" @click="up">
+              <el-icon><ArrowUp /></el-icon>
             </el-button>
-            <el-button text>
-              <el-icon @click="next"><ArrowDown /></el-icon>
+            <el-button text :disabled="!selectedCount" :aria-label="$t('common.pages.next')" @click="next">
+              <el-icon><ArrowDown /></el-icon>
             </el-button>
-            <el-button text @click="closeSearch()">
+            <el-button text :aria-label="$t('common.close')" @click="closeSearch()">
               <el-icon><Close /></el-icon>
             </el-button>
           </el-space>
@@ -46,7 +45,7 @@
       </div>
     </el-card>
     <!-- 开启搜索按钮 -->
-    <el-button v-else @click="openSearch()" circle class="workflow-search-button" size="large">
+    <el-button v-else ref="searchButton" :aria-label="$t('common.search')" :title="$t('workflow.tip.searchPlaceholder')" @click="openSearch()" circle class="workflow-search-button" size="large">
       <el-icon :size="20"><Search /></el-icon>
     </el-button>
   </div>
@@ -61,6 +60,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {})
 
 // 状态
+const searchButton = ref<{ $el: HTMLElement }>()
 const showSearch = ref(false)
 const searchText = ref('')
 const searchInputRef = ref<any>(null)
@@ -70,7 +70,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
   // Ctrl+F 或 Cmd+F (Mac)
   if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
     e.preventDefault() // 阻止浏览器默认搜索
-    openSearch()
+    if (showSearch.value) searchInputRef.value?.focus()
+    else openSearch()
   }
 
   // 按ESC关闭
@@ -96,7 +97,7 @@ const selectedCount = computed(() => {
 const getSelectNodes = (kw: string) => {
   const result: Array<any> = []
   const graph_data = props.lf?.getGraphData()
-  graph_data.nodes.filter((node: any) => {
+  graph_data?.nodes.forEach((node: any) => {
     if (node.properties.stepName.includes(kw)) {
       if (node.type !== 'loop-body-node') {
         result.push({
@@ -190,6 +191,7 @@ const closeSearch = () => {
   clearSelect()
   showSearch.value = false
   searchText.value = ''
+  nextTick(() => searchButton.value?.$el.focus())
 }
 const clearSelect = () => {
   if (selectedNodes.value) {
@@ -201,7 +203,7 @@ const clearSelect = () => {
   currentIndex.value = 0
   props.lf?.graphModel.clearSelectElements()
   const graph_data = props.lf?.getGraphData()
-  graph_data.nodes.forEach((node: any) => {
+  graph_data?.nodes.forEach((node: any) => {
     if (node.type == 'loop-body-node') {
       props.lf?.graphModel.getNodeModelById(node.id).clearSelectElements()
     }
@@ -236,9 +238,15 @@ defineExpose({ reSearch })
   top: 72px;
   left: 24px;
   z-index: 2;
-  box-shadow: 0px 4px 8px 0px rgba(31, 35, 41, 0.1);
+  color: var(--studio-ink);
+  border-color: var(--studio-hairline);
+  box-shadow: var(--studio-shadow);
 }
 .workflow-search {
+  --el-card-padding: 6px 8px;
+  --el-card-border-radius: 13px;
+  box-shadow: var(--studio-shadow);
+  border: 1px solid var(--studio-hairline);
   position: absolute;
   top: 72px;
   left: 50%;
@@ -246,7 +254,11 @@ defineExpose({ reSearch })
   z-index: 2;
 }
 .workflow-search-container {
-  width: 360px;
+  width: min(360px, calc(100vw - 54px));
+  gap: 4px;
+  :deep(.el-input) { min-width: 55px; }
+  :deep(.el-button) { margin: 0; padding-inline: 6px; }
+  .search-empty { white-space: nowrap; }
   :deep(.el-input__wrapper) {
     box-shadow: none;
     padding: 0 8px 0 1px !important;

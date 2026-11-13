@@ -48,6 +48,7 @@
               </el-card>
               <el-card
                 shadow="never"
+                class="mb-16"
                 :class="form.knowledge_setting.search_mode === 'blend' ? 'border-active' : ''"
               >
                 <el-radio value="blend" size="large">
@@ -57,6 +58,12 @@
                   <el-text type="info">{{
                     $t('views.application.dialog.hybridSearchTooltip')
                   }}</el-text>
+                </el-radio>
+              </el-card>
+              <el-card shadow="never" :class="{ 'border-active': form.knowledge_setting.search_mode === 'rrf' }">
+                <el-radio value="rrf" size="large">
+                  <p class="mb-4">{{ $t('views.application.dialog.rankFusion') }}</p>
+                  <el-text type="info">{{ $t('views.application.dialog.rankFusionTooltip') }}</el-text>
                 </el-radio>
               </el-card>
             </el-radio-group>
@@ -81,7 +88,7 @@
                 <el-input-number
                   v-model="form.knowledge_setting.similarity"
                   :min="0"
-                  :max="form.knowledge_setting.search_mode === 'blend' ? 2 : 1"
+                  :max="['blend', 'rrf'].includes(form.knowledge_setting.search_mode) ? 2 : 1"
                   :precision="3"
                   :step="0.1"
                   :value-on-clear="0"
@@ -301,7 +308,7 @@ const submit = async (formEl: FormInstance | undefined) => {
 }
 
 function changeHandle(val: string) {
-  if (val === 'keywords') {
+  if (val === 'keywords' || val === 'rrf') {
     form.value.knowledge_setting.similarity = 0
   } else {
     form.value.knowledge_setting.similarity = 0.6

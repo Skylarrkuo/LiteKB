@@ -216,7 +216,7 @@
           <slot name="inlineParams" />
         </div>
         <div class="flex align-center">
-          <template v-if="props.applicationDetails.stt_model_enable">
+          <template v-if="(mediaEnabled && props.applicationDetails.stt_model_enable)">
             <span v-if="mode === 'mobile'">
               <el-button text @click="switchMicrophone(!isMicrophone)">
                 <!-- 键盘 -->
@@ -304,7 +304,7 @@
               direction="vertical"
               v-if="
                 props.applicationDetails.file_upload_enable ||
-                props.applicationDetails.stt_model_enable
+                (mediaEnabled && props.applicationDetails.stt_model_enable)
               "
             />
             <el-button
@@ -396,6 +396,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { mediaEnabled } from '@/workflow/capabilities'
 import { computed, nextTick, onMounted, reactive, ref, type Ref } from 'vue'
 import { t } from '@/locales'
 import Recorder from 'recorder-core'

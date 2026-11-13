@@ -471,16 +471,7 @@ const importApplication = (file: any) => {
         router.push({ path: `/application` })
       }
     })
-    .catch((e) => {
-      if (e.code === 400) {
-        MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-          cancelButtonText: t('common.confirm'),
-          confirmButtonText: t('common.professional'),
-        }).then(() => {
-          window.open('https://maxkb.cn/pricing.html', '_blank')
-        })
-      }
-    })
+    .catch(() => {})
 }
 
 // 知识库快捷方式
@@ -517,16 +508,7 @@ function importKnowledgeBundle(file: any) {
         })
       }
     })
-    .catch((e: any) => {
-      if (e.code === 400) {
-        MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-          cancelButtonText: t('common.confirm'),
-          confirmButtonText: t('common.professional'),
-        }).then(() => {
-          window.open('https://maxkb.cn/pricing.html', '_blank')
-        })
-      }
-    })
+    .catch(() => {})
 }
 
 // 工具快捷方式
@@ -547,16 +529,7 @@ function importTool(file: any) {
         })
       }
     })
-    .catch((e: any) => {
-      if (e.code === 400) {
-        MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-          cancelButtonText: t('common.confirm'),
-          confirmButtonText: t('common.professional'),
-        }).then(() => {
-          window.open('https://maxkb.cn/pricing.html', '_blank')
-        })
-      }
-    })
+    .catch(() => {})
 }
 const ToolFormDrawerRef = ref()
 const ToolDrawertitle = ref('')

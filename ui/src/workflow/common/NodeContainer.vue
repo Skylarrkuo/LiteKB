@@ -1,19 +1,18 @@
 <template>
   <div @mousedown="mousedown" class="workflow-node-container p-16" style="overflow: visible">
     <div
-      class="step-container white-bg border-r-8 p-16"
+      class="step-container white-bg p-16"
       :class="{ isSelected: props.nodeModel.isSelected, error: node_status !== 200 }"
       style="overflow: visible"
     >
       <div v-resize="resizeStepContainer">
         <div class="flex-between">
           <div
-            class="flex align-center"
+            class="node-heading flex align-center"
             @dragstart.prevent
             @drag.prevent
             @dragover.prevent
             @dragend.prevent
-            style="width: 69%"
           >
             <component
               :is="iconComponent(`${nodeModel.type}-icon`)"
@@ -22,17 +21,17 @@
               :item="nodeModel?.properties.node_data"
               style="--el-avatar-border-radius: 6px"
             />
-            <h4 class="ellipsis-1 break-all">
+            <h4 class="ellipsis-1 break-all" :title="nodeModel.properties.stepName">
               <span
                 v-for="(character, index) in Array.from(String(nodeModel.properties.stepName || ''))"
                 :key="index"
-                :style="keyWord.includes(character) ? { background: currentKeyWord ? '#FF8800' : '#FFC60A' } : {}"
+                :class="{ 'search-match': keyWord.includes(character), 'current-match': currentKeyWord && keyWord.includes(character) }"
               >{{ character }}</span>
             </h4>
           </div>
 
-          <div @mousemove.stop @mousedown.stop @keydown.stop @click.stop>
-            <el-button text @click="showNode = !showNode">
+          <div class="node-actions" @mousemove.stop @mousedown.stop @keydown.stop @click.stop>
+            <el-button text :aria-expanded="showNode" :aria-label="showNode ? $t('common.collapse') : $t('common.expand')" @click="showNode = !showNode">
               <el-icon class="arrow-icon color-secondary" :class="showNode ? 'rotate-180' : ''"
                 ><ArrowDownBold />
               </el-icon>
@@ -43,7 +42,7 @@
               trigger="click"
               placement="bottom-start"
             >
-              <el-button text>
+              <el-button text :aria-label="$t('workflow.condition.title')">
                 <img src="@/assets/workflow/icon_or.svg" alt="" v-if="condition === 'OR'" />
                 <img src="@/assets/workflow/icon_and.svg" alt="" v-if="condition === 'AND'" />
               </el-button>
@@ -62,7 +61,7 @@
               </template>
             </el-dropdown>
             <el-dropdown v-if="showOperate(nodeModel.type)" :teleported="false" trigger="click">
-              <el-button text>
+              <el-button text :aria-label="$t('common.moreSettings')">
                 <AppIcon iconName="app-more" class="color-secondary"></AppIcon>
               </el-button>
               <template #dropdown>
@@ -105,7 +104,7 @@
           </div>
         </div>
         <el-collapse-transition>
-          <div @mousedown.stop @keydown.stop @click.stop v-show="showNode" class="mt-16">
+          <div @mousedown.stop @keydown.stop @click.stop v-show="showNode" class="node-parameters">
             <el-alert
               v-if="nodeDisabled"
               class="mb-16"
@@ -140,18 +139,15 @@
               <div class="border-r-6 p-4-12 layout-bg lighter">
                 <template v-for="(item, index) in nodeFields" :key="index">
                   <div
-                    class="flex-between mb-8 mt-8"
-                    @mouseenter="showicon = index"
-                    @mouseleave="showicon = null"
+                    class="parameter-output flex-between mb-8 mt-8"
                   >
                     <span class="break-all">{{ item.label }} {{ '{' + item.value + '}' }}</span>
                     <el-tooltip
                       effect="dark"
                       :content="$t('workflow.setting.copyParam')"
                       placement="top"
-                      v-if="showicon === index"
                     >
-                      <el-button link @click="copyClick(item.globeLabel)" style="padding: 0">
+                      <el-button class="copy-output" link :aria-label="$t('workflow.setting.copyParam') + ' · ' + item.label" @click="copyClick(item.globeLabel)">
                         <AppIcon iconName="app-copy"></AppIcon>
                       </el-button>
                     </el-tooltip>
@@ -162,18 +158,15 @@
               <div class="border-r-6 p-4-12 layout-bg lighter mt-8" v-if="enable_exception">
                 <template v-for="(item, index) in abnormalNodeFields" :key="index">
                   <div
-                    class="flex-between mb-8 mt-8"
-                    @mouseenter="showicon = 'abnormal' + index"
-                    @mouseleave="showicon = null"
+                    class="parameter-output flex-between mb-8 mt-8"
                   >
                     <span class="break-all">{{ item.label }} {{ '{' + item.value + '}' }}</span>
                     <el-tooltip
                       effect="dark"
                       :content="$t('workflow.setting.copyParam')"
                       placement="top"
-                      v-if="showicon === 'abnormal' + index"
                     >
-                      <el-button link @click="copyClick(item.globeLabel)" style="padding: 0">
+                      <el-button class="copy-output" link :aria-label="$t('workflow.setting.copyParam') + ' · ' + item.label" @click="copyClick(item.globeLabel)">
                         <AppIcon iconName="app-copy"></AppIcon>
                       </el-button>
                     </el-tooltip>
@@ -370,7 +363,6 @@ const mousedown = (event?: any) => {
   set(props.nodeModel, 'isHovered', !props.nodeModel.isSelected)
   props.nodeModel.graphModel.toFront(props.nodeModel.id)
 }
-const showicon = ref<number | string | null>(null)
 const copyNode = () => {
   props.nodeModel.graphModel.clearSelectElements()
   const cloneNode = props.nodeModel.graphModel.cloneNode(props.nodeModel.id)
@@ -531,7 +523,7 @@ const keyWord = ref('')
 const currentKeyWord = ref(false)
 const selectOn = (kw: string) => {
   keyWord.value = kw
-  props.nodeModel.isSelected = false
+  props.nodeModel.setSelected(false)
   currentKeyWord.value = false
 }
 /**
@@ -552,7 +544,8 @@ const clearSelectOn = () => {
 
 onMounted(() => {
   set(props.nodeModel, 'openNodeMenu', (anchorData: any) => {
-    showAnchor.value ? closeNodeMenu() : openNodeMenu(anchorData)
+    if (showAnchor.value) closeNodeMenu()
+    else openNodeMenu(anchorData)
   })
   set(props.nodeModel, 'selectOn', selectOn)
   set(props.nodeModel, 'focusOn', focusOn)
@@ -562,19 +555,40 @@ onMounted(() => {
 <style lang="scss" scoped>
 .workflow-node-container {
   .step-container {
-    border: 2px solid #ffffff !important;
+    border: 2px solid var(--studio-hairline);
+    border-radius: var(--app-border-radius-large);
     box-sizing: border-box;
-    box-shadow: 0px 2px 4px 0px rgba(var(--el-text-color-primary-rgb), 0.12);
+    box-shadow: var(--studio-shadow);
     &:hover {
-      box-shadow: 0px 6px 24px 0px rgba(var(--el-text-color-primary-rgb), 0.08);
+      border-color: var(--el-border-color-hover);
     }
     &.isSelected {
-      border: 2px solid var(--el-color-primary) !important;
+      border-color: var(--studio-ink);
+      box-shadow: 0 0 0 2px var(--studio-selection);
     }
     &.error {
-      border: 1px solid #f54a45 !important;
+      border-color: var(--el-color-danger);
     }
   }
+}
+.node-heading { flex: 1; min-width: 0; }
+.node-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  .el-button { padding: 3px; height: 26px; min-width: 26px; }
+}
+.search-match { background: var(--studio-mint); color: var(--studio-ink); }
+.current-match { background: var(--studio-ink); color: white; }
+.node-parameters {
+  margin-top: 12px;
+  border-top: 1px solid var(--studio-hairline);
+  padding-top: 12px;
+}
+.copy-output { padding: 2px; color: var(--studio-ink); }
+@media (hover: hover) {
+  .parameter-output:not(:hover):not(:focus-within) .copy-output { opacity: 0; }
 }
 :deep(.el-card) {
   overflow: visible;

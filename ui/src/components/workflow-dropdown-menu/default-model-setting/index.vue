@@ -28,6 +28,7 @@
             />
             <el-button
               class="ml-8"
+              :aria-label="$t('common.paramSetting') + ' · ' + item.label"
               :disabled="readonly || !modelSetting[item.type].model_id || item.type === 'RERANKER'"
               @click="openModelParam(item)"
               icon="Operation"
@@ -48,6 +49,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { mediaEnabled } from '@/workflow/capabilities'
 import { ref, computed, watch, inject } from 'vue'
 import { t } from '@/locales'
 import { groupBy } from 'lodash'
@@ -83,7 +85,9 @@ const defaulTypeLabels: Record<string, string> = {
   ITV: t('workflow.setting.modelType.ITV'),
   RERANKER: t('workflow.setting.modelType.RERANKER'),
 }
-const defaultModelTypes = ['LLM', 'TTS', 'STT', 'IMAGE', 'TTI', 'TTV', 'ITV', 'RERANKER'].map(
+const defaultModelTypes = (mediaEnabled.value
+  ? ['LLM', 'TTS', 'STT', 'IMAGE', 'TTI', 'TTV', 'ITV', 'RERANKER']
+  : ['LLM', 'IMAGE', 'RERANKER']).map(
   (type) => ({
     type,
     label: defaulTypeLabels[type] || type,
@@ -172,7 +176,9 @@ const hasChanges = computed(
 )
 
 function commitSetting() {
-  emit('update:modelValue', { ...modelSetting.value })
+  const next = { ...props.modelValue }
+  for (const { type } of defaultModelTypes) next[type] = modelSetting.value[type]
+  emit('update:modelValue', next)
 }
 
 // 将暂存副本重置为已持久化的配置(用于「不保存」丢弃暂存)。
@@ -202,11 +208,11 @@ function applyDefaultModelToAll() {
       if (!nd) continue
       if (node.type === 'base-node') {
         // base-node 只有 default/custom(tts 另有 BROWSER),应用默认模型即覆盖 custom
-        if (nd.stt_model_enable && nd.stt_model_id_type !== 'default') {
+        if (mediaEnabled.value && nd.stt_model_enable && nd.stt_model_id_type !== 'default') {
           nd.stt_model_id_type = 'default'
           count++
         }
-        if (nd.tts_model_enable && nd.tts_type !== 'BROWSER' && nd.tts_type !== 'DEFAULT') {
+        if (mediaEnabled.value && nd.tts_model_enable && nd.tts_type !== 'BROWSER' && nd.tts_type !== 'DEFAULT') {
           nd.tts_type = 'DEFAULT'
           count++
         }
@@ -251,7 +257,11 @@ async function handleClickOutside(e: MouseEvent, _e2?: MouseEvent) {
   // ModelSelect 下拉(popper-class select-model)与参数弹窗(el-dialog append-to-body 及其 .el-overlay 遮罩)
   // 都 teleport 到 body,不在面板 DOM 树内,v-click-outside 会误判为"面板外点击"。
   // 此处显式排除:点击这两类浮层内(含弹窗遮罩、确认弹窗)视为面板内交互,不关闭。
-  if (target && (target.closest('.select-model') || target.closest('.el-overlay'))) return
+  if (target?.closest('.select-model, .el-overlay, .model-settings-trigger')) return
+  await requestClose()
+}
+
+async function requestClose() {
   if (!hasChanges.value) {
     // 无未保存修改,直接关闭
     emit('close')
@@ -283,6 +293,7 @@ async function handleClickOutside(e: MouseEvent, _e2?: MouseEvent) {
     emit('close')
   }
 }
+defineExpose({ requestClose })
 </script>
 <style lang="scss">
 @use '../index.scss';

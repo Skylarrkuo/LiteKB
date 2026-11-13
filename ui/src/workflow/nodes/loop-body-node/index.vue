@@ -16,7 +16,7 @@ import { WorkFlowInstance, KnowledgeWorkFlowInstance } from '@/workflow/common/v
 import { t } from '@/locales'
 import { disconnectByFlow } from '@/workflow/common/teleport'
 const loop_workflow_mode = inject('loopWorkflowMode') || WorkflowMode.ApplicationLoop
-const nodes: any = import.meta.glob('@/workflow/nodes/**/index.ts', { eager: true })
+import { installedNodes } from '@/workflow/registry'
 const props = defineProps<{ nodeModel: any }>()
 const containerRef = ref()
 const LoopBodyContainerRef = ref<InstanceType<typeof LoopBodyContainer>>()
@@ -84,13 +84,13 @@ const renderGraphData = (data?: any) => {
       adjustEdge: false,
       adjustEdgeStartAndEnd: false,
       background: {
-        backgroundColor: '#f5f6f7',
+        backgroundColor: 'var(--app-layout-bg-color)',
       },
       grid: {
         size: 10,
         type: 'dot',
         config: {
-          color: '#DEE0E3',
+          color: 'var(--studio-hairline)',
           thickness: 1,
         },
       },
@@ -102,7 +102,7 @@ const renderGraphData = (data?: any) => {
     })
     lf.value.setTheme({
       bezier: {
-        stroke: '#afafaf',
+        stroke: 'var(--app-text-color-secondary)',
         strokeWidth: 1,
       },
     })
@@ -113,7 +113,6 @@ const renderGraphData = (data?: any) => {
       let translateX = lf.value.graphModel.transformModel.TRANSLATE_X
       let translateY = lf.value.graphModel.transformModel.TRANSLATE_Y
       const [x, y] = point
-      props.nodeModel.graphModel.transformModel
       scaleX *= props.nodeModel.graphModel.transformModel.SCALE_X
       scaleY *= props.nodeModel.graphModel.transformModel.SCALE_Y
       translateX *= props.nodeModel.graphModel.transformModel.SCALE_X
@@ -138,7 +137,7 @@ const renderGraphData = (data?: any) => {
       return props.nodeModel.graphModel.nodes
     }
     lf.value.graphModel.get_up_node_field_list = props.nodeModel.get_up_node_field_list
-    lf.value.batchRegister([...Object.keys(nodes).map((key) => nodes[key].default), AppEdge])
+    lf.value.batchRegister([...installedNodes(), AppEdge])
     lf.value.setDefaultEdgeType('app-edge')
     lf.value.render(data ? data : {})
 

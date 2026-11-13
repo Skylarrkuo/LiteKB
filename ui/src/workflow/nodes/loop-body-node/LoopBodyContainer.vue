@@ -1,7 +1,7 @@
 <template>
   <div @mousedown="mousedown" class="workflow-node-container p-16" style="overflow: visible">
     <div
-      class="step-container white-bg border-r-8 p-16"
+      class="step-container white-bg p-16"
       :class="{ isSelected: props.nodeModel.isSelected, error: node_status !== 200 }"
       style="overflow: visible;"
     >
@@ -18,7 +18,7 @@
           </div>
 
           <!-- 放大缩小按钮 -->
-          <el-button link @click="enlargeHandle">
+          <el-button link :aria-pressed="enlarge" :aria-label="enlarge ? $t('common.collapse') : $t('common.expand')" @click="enlargeHandle">
             <AppIcon
               :iconName="enlarge ? 'app-minify' : 'app-magnify'"
               class="color-secondary"
@@ -52,17 +52,14 @@
               <template v-for="(item, index) in nodeFields" :key="index">
                 <div
                   class="flex-between border-r-4 p-8-12 mb-8 layout-bg lighter"
-                  @mouseenter="showicon = index"
-                  @mouseleave="showicon = null"
                 >
                   <span class="break-all">{{ item.label }} {{ '{' + item.value + '}' }}</span>
                   <el-tooltip
                     effect="dark"
                     :content="$t('workflow.setting.copyParam')"
                     placement="top"
-                    v-if="showicon === index"
                   >
-                    <el-button link @click="copyClick(item.globeLabel)" style="padding: 0">
+                    <el-button link :aria-label="$t('workflow.setting.copyParam') + ' · ' + item.label" @click="copyClick(item.globeLabel)" style="padding: 2px">
                       <AppIcon iconName="app-copy"></AppIcon>
                     </el-button>
                   </el-tooltip>
@@ -175,7 +172,6 @@ const mousedown = () => {
   set(props.nodeModel, 'isHovered', true)
   props.nodeModel.graphModel.toFront(props.nodeModel.id)
 }
-const showicon = ref<number | null>(null)
 
 const height = ref<number>(600)
 
@@ -208,12 +204,12 @@ function enlargeHandle() {
     height.value =
       (props.nodeModel.graphModel.height - 100) / props.nodeModel.graphModel.transformModel.SCALE_Y
     const width = window.innerWidth / props.nodeModel.graphModel.transformModel.SCALE_X
-    props.nodeModel.width = width
+    props.nodeModel.updateAttributes({ width })
     props.nodeModel.setHeight(height.value)
   } else {
     height.value = 600
     const width = 1920
-    props.nodeModel.width = width
+    props.nodeModel.updateAttributes({ width })
     props.nodeModel.setHeight(height.value)
   }
 }
@@ -227,17 +223,19 @@ defineExpose({ close, zoom })
 <style lang="scss" scoped>
 .workflow-node-container {
   .step-container {
-    border: 2px solid #ffffff !important;
+    border: 2px solid var(--studio-hairline);
+    border-radius: var(--app-border-radius-large);
     box-sizing: border-box;
-    box-shadow: 0px 2px 4px 0px rgba(var(--el-text-color-primary-rgb), 0.12);
+    box-shadow: var(--studio-shadow);
     &:hover {
-      box-shadow: 0px 6px 24px 0px rgba(var(--el-text-color-primary-rgb), 0.08);
+      border-color: var(--el-border-color-hover);
     }
     &.isSelected {
-      border: 2px solid var(--el-color-primary) !important;
+      border-color: var(--studio-ink);
+      box-shadow: 0 0 0 2px var(--studio-selection);
     }
     &.error {
-      border: 1px solid #f54a45 !important;
+      border-color: var(--el-color-danger);
     }
   }
 }

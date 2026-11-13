@@ -113,7 +113,7 @@
       <UserInputFieldTable ref="UserInputFieldTableFef" :node-model="nodeModel" />
       <ApiInputFieldTable ref="ApiInputFieldTableFef" :node-model="nodeModel" />
       <ChatFieldTable ref="ChatFieldTeble" :node-model="nodeModel"></ChatFieldTable>
-      <el-form-item>
+      <el-form-item v-if="mediaEnabled">
         <template #label>
           <div class="flex-between">
             <span class="mr-4">{{ $t('views.application.form.voiceInput.label') }}</span>
@@ -155,7 +155,7 @@
           :model-type="'STT'"
         ></ModelSelect>
       </el-form-item>
-      <el-form-item>
+      <el-form-item v-if="mediaEnabled">
         <template #label>
           <div class="flex-between">
             <span class="mr-4">{{ $t('views.application.form.voicePlay.label') }}</span>
@@ -223,6 +223,7 @@
   </NodeContainer>
 </template>
 <script setup lang="ts">
+import { mediaEnabled } from '@/workflow/capabilities'
 import { groupBy, set } from 'lodash'
 import NodeContainer from '@/workflow/common/NodeContainer.vue'
 import DefaultModelDisplay from '@/workflow/common/DefaultModelDisplay.vue'
@@ -307,7 +308,7 @@ const baseNodeFormRef = ref<FormInstance>()
 
 const validate = () => {
   if (
-    form_data.value.tts_model_enable &&
+    mediaEnabled.value && form_data.value.tts_model_enable &&
     form_data.value.tts_type === 'CUSTOM' &&
     !form_data.value.tts_model_id
   ) {
@@ -317,7 +318,7 @@ const validate = () => {
     })
   }
   if (
-    form_data.value.stt_model_enable &&
+    mediaEnabled.value && form_data.value.stt_model_enable &&
     form_data.value.stt_model_id_type === 'custom' &&
     !form_data.value.stt_model_id
   ) {
@@ -524,8 +525,10 @@ onMounted(() => {
   if (nd.long_term_model_id_type === undefined) {
     set(nd, 'long_term_model_id_type', nd.long_term_model_id ? 'custom' : 'default')
   }
-  getTTSModel()
-  getSTTModel()
+  if (mediaEnabled.value) {
+    getTTSModel()
+    getSTTModel()
+  }
 })
 </script>
 <style lang="scss" scoped></style>

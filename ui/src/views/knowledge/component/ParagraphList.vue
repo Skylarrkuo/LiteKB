@@ -13,22 +13,19 @@
         :key="cIndex"
         shadow="never"
         class="paragraph-preview-card card-never mb-16"
-        @mouseenter="cardEnter(cIndex)"
-        @mouseleave="cardLeave()"
       >
-        <div v-show="show === cIndex" class="mk-sticky">
+        <div class="preview-actions">
           <el-card
-            class="paragraph-box-operation mt-8 mr-8"
-            shadow="always"
-            style="--el-card-padding: 8px 12px; --el-card-border-radius: 8px"
+            class="paragraph-box-operation"
+            shadow="never"
             @click.stop
           >
             <!-- 编辑分段按钮 -->
-            <el-button link @click="editHandle(child, cIndex)">
+            <el-button link :aria-label="$t('views.paragraph.editParagraph')" @click="editHandle(child, cIndex)">
               <AppIcon iconName="app-edit"></AppIcon>
             </el-button>
             <!-- 删除分段按钮  -->
-            <el-button link @click="deleteHandle(child, cIndex)">
+            <el-button link :aria-label="$t('common.delete')" @click="deleteHandle(child, cIndex)">
               <AppIcon iconName="app-delete"></AppIcon>
             </el-button>
           </el-card>
@@ -105,14 +102,7 @@ const paragraph_list = computed(() => {
   return localParagraphList.value
 })
 
-const show = ref<number | null>(null)
-function cardEnter(cIndex: number) {
-  show.value = cIndex
-}
 
-function cardLeave() {
-  show.value = null
-}
 
 const next = () => {
   if (loading.value) return
@@ -181,20 +171,15 @@ const deleteHandle = (item: any, cIndex: number) => {
 <style lang="scss" scoped>
 .paragraph-preview-card {
   position: relative;
-  .mk-sticky {
-    height: 0;
-    position: sticky;
-    right: 0;
-    top: 12px;
-    overflow: inherit;
-    z-index: 10;
-  }
-  .paragraph-box-operation {
-    position: absolute;
-    right: -10px;
-    top: -20px;
-    overflow: inherit;
-    z-index: 10;
-  }
+  border-color: var(--studio-hairline);
+  border-radius: var(--app-border-radius-base);
+}
+.preview-actions { float: right; margin: -4px 0 4px 8px; }
+.paragraph-box-operation {
+  --el-card-padding: 4px 7px;
+  border: 0;
+  border-radius: var(--app-border-radius-small);
+  background: var(--app-layout-bg-color);
+  .el-button { min-width: 24px; min-height: 24px; color: var(--studio-ink); }
 }
 </style>

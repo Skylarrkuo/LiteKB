@@ -1,10 +1,10 @@
 <template>
-  <div class="document p-16-24">
+  <div class="knowledge-data-page">
     <h2 class="mb-16">{{ $t('views.problem.title') }}</h2>
-    <el-card style="--el-card-padding: 0">
-      <div class="main-calc-height">
-        <div class="p-24">
-          <div class="flex-between">
+    <el-card shadow="never">
+      <div>
+        <div class="data-surface">
+          <div class="data-toolbar">
             <div>
               <el-button
                 type="primary"
@@ -102,7 +102,7 @@
                 {{ datetimeFormat(row.update_time) }}
               </template>
             </el-table-column>
-            <el-table-column :label="$t('common.operation')" align="left" fixed="right">
+            <el-table-column :label="$t('common.operation')" align="left" :fixed="compactTable ? false : 'right'">
               <template #default="{ row }">
                 <div>
                   <span class="mr-4">
@@ -155,6 +155,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { useMediaQuery } from '@vueuse/core'
 import { ref, onMounted, reactive, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { TableInstance } from 'element-plus'
@@ -169,6 +170,7 @@ import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
 import permissionMap from '@/permission'
 
 const route = useRoute()
+const compactTable = useMediaQuery('(max-width: 760px)')
 const {
   params: { id, folderId }, // 知识库id
 } = route as any
@@ -425,4 +427,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {})
 </script>
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+@use '../knowledge/detail';
+</style>

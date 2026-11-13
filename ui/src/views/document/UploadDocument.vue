@@ -1,12 +1,12 @@
 <template>
-  <div class="upload-document p-12-24">
+  <div class="upload-document upload-wizard">
     <div class="flex align-center mb-16">
       <back-button @click="back" style="margin-left: -4px"></back-button>
       <h3 style="display: inline-block">{{ $t('views.document.uploadDocument') }}</h3>
     </div>
     <el-card style="--el-card-padding: 0">
       <div class="upload-document__main flex" v-loading="loading">
-        <div class="upload-document__component main-calc-height">
+        <div class="upload-document__component">
           <el-scrollbar>
             <template v-if="active === 0">
               <div class="upload-component p-24">
@@ -206,6 +206,31 @@ onUnmounted(() => {
   clearStore()
 })
 </script>
-<style lang="scss">
-@use './index.scss';
+<style lang="scss" scoped>
+.upload-wizard {
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 16px clamp(14px, 2.4vw, 32px);
+  .el-card {
+    min-height: 0;
+    flex: 1;
+    border-radius: var(--app-border-radius-large);
+    border-color: var(--studio-hairline);
+    box-shadow: var(--studio-shadow);
+  }
+  h3 { color: var(--studio-ink); }
+  :deep(> .el-card > .el-card__body), .upload-document__main, .upload-document__component { height: 100%; }
+  .upload-document__component { width: 100%; min-width: 0; }
+  .upload-component { width: min(100%, 840px); margin: 0 auto; box-sizing: border-box; padding: clamp(14px, 2vw, 24px); }
+  .upload-document__footer {
+    position: static;
+    width: 100%;
+    padding: 12px 0 0;
+    border: 0;
+    background: transparent;
+  }
+}
 </style>
