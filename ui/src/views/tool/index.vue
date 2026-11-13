@@ -150,7 +150,6 @@ onBeforeUnmount(() => {
 .tool-manage :deep(.tree-node:has(.maxkb-tree-node.is-current)) {
   color: var(--studio-ink);
   background: var(--studio-selection);
-  box-shadow: inset 3px 0 var(--studio-ink);
 }
 @media (max-width: 760px) {
   .folder-title {

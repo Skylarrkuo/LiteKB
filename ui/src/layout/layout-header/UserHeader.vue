@@ -34,7 +34,7 @@ import { branding } from '@/utils/branding'
 @media (max-width: 820px) {
   .workspace-bar {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: 45px 44px;
+    grid-template-rows: 40px 50px;
     padding: 3px 14px 8px;
     gap: 4px 8px;
   }

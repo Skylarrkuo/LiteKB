@@ -42,12 +42,13 @@ const topMenuList = computed(() => topMenuRoutes.filter(
 .top-menu-container {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   box-sizing: border-box;
   padding: 4px;
-  background: #eaf0ed;
-  border: 1px solid #dce6e0;
-  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgb(22 75 80 / 4%);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -57,6 +58,7 @@ const topMenuList = computed(() => topMenuRoutes.filter(
 @media (max-width: 820px) {
   .top-menu-container {
     width: 100%;
+    padding: 2px;
     justify-content: safe center;
   }
 }
