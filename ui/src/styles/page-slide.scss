@@ -1,0 +1,33 @@
+html[data-slide] {
+  view-transition-name: none;
+  --page-enter-x: clamp(48px, 15vw, 180px);
+  --page-leave-x: calc(-1 * var(--page-enter-x));
+}
+html[data-slide='back'] {
+  --page-leave-x: clamp(48px, 15vw, 180px);
+  --page-enter-x: calc(-1 * var(--page-leave-x));
+}
+html[data-slide]::view-transition { pointer-events: none; }
+::view-transition-group(studio-page) { animation-duration: 260ms; }
+::view-transition-image-pair(studio-page) { isolation: isolate; overflow: clip; }
+::view-transition-old(studio-page), ::view-transition-new(studio-page) {
+  mix-blend-mode: normal;
+  animation: page-exit 240ms cubic-bezier(.25,.62,.28,1) both;
+}
+::view-transition-new(studio-page) {
+  animation-name: page-enter;
+  animation-duration: 260ms;
+}
+@keyframes page-enter {
+  from { transform: translateX(var(--page-enter-x)); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes page-exit {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(var(--page-leave-x)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(studio-page), ::view-transition-old(studio-page), ::view-transition-new(studio-page) {
+    animation-duration: 0s;
+  }
+}

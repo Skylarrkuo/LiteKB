@@ -86,3 +86,8 @@ export const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/error/404.vue'),
   },
 ]
+
+// Used by both the header and page transitions. List routes can share a path with their parent.
+export const topMenuRoutes = (routes.find(route => route.name === 'root')?.children ?? [])
+  .filter(route => route.meta?.menu)
+  .sort((a, b) => Number(a.meta?.order ?? 1) - Number(b.meta?.order ?? 1))

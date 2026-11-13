@@ -1,30 +1,29 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { pendingRoute } from '@/router'
 import { loadBranding } from '@/utils/branding'
 
 void loadBranding().catch(() => {})
-const route = useRoute()
-const viewport = ref<HTMLElement>()
-let entrance: Animation | undefined
-
-watch(() => route.path, () => {
-  entrance?.cancel()
-  const root = viewport.value
-  if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  const content = root.querySelector<HTMLElement>('.settings-content') ||
-    root.querySelector<HTMLElement>('.studio-main-content')
-  // Keep the shell fixed. Full-screen editors also keep their canvas coordinates during navigation.
-  const frames = content
-    ? [{ opacity: 0.65, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }]
-    : [{ opacity: 0.72 }, { opacity: 1 }]
-  entrance = (content || root).animate(frames, { duration: 180, easing: 'cubic-bezier(.2,.72,.25,1)' })
-}, { flush: 'post' })
-onBeforeUnmount(() => entrance?.cancel())
 </script>
 <template>
-  <div ref="viewport" class="studio-viewport"><RouterView /></div>
+  <div class="studio-viewport">
+    <div v-if="pendingRoute" class="route-progress" aria-hidden="true"></div>
+    <div class="route-page"><RouterView /></div>
+  </div>
 </template>
 <style scoped>
-.studio-viewport { height: 100%; min-width: 0; }
+.studio-viewport, .route-page { height: 100%; min-width: 0; }
+.studio-viewport { overflow-x: clip; }
+.route-progress {
+  position: fixed; inset: 0 0 auto; height: 2px; z-index: 4000; pointer-events: none;
+  background: var(--studio-ink); transform-origin: left; opacity: 0;
+  animation: route-wait 1.6s cubic-bezier(.12,.65,.24,1) 100ms forwards;
+}
+@keyframes route-wait {
+  from { opacity: 0; transform: scaleX(.1); }
+  12% { opacity: .85; }
+  to { opacity: .85; transform: scaleX(.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-progress { animation: none; transform: scaleX(.25); opacity: 1; }
+}
 </style>

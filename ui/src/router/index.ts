@@ -1,6 +1,6 @@
 import { hasPermission, set_next_route } from '@/utils/permission/index'
 import { getChildRouteList } from '@/router/common'
-import NProgress from 'nprogress'
+import { shallowRef } from 'vue'
 import { getPermissionRoute } from '@/router/common'
 import {
   createRouter,
@@ -10,28 +10,22 @@ import {
   type RouteRecordName,
 } from 'vue-router'
 import useStore from '@/stores'
+import { installPageSlide } from './page-slide'
 import { routes } from '@/router/routes'
-NProgress.configure({ showSpinner: false, speed: 180, minimum: 0.2 })
+export const pendingRoute = shallowRef<RouteLocationNormalized>()
 const router = createRouter({
   history: createWebHistory(window.MaxKB?.prefix ? window.MaxKB?.prefix : import.meta.env.BASE_URL),
   routes: routes,
 })
 
-let pendingRoute: RouteLocationNormalized | undefined
-let progressDelay: number | undefined
 function finishProgress(to: RouteLocationNormalized) {
-  if (to !== pendingRoute) return
-  window.clearTimeout(progressDelay)
-  pendingRoute = undefined
-  NProgress.done()
+  if (to === pendingRoute.value) pendingRoute.value = undefined
 }
 
 // 路由前置拦截器
 router.beforeEach(
   async (to: RouteLocationNormalized, from: RouteLocationNormalized, next: NavigationGuardNext) => {
-    window.clearTimeout(progressDelay)
-    pendingRoute = to
-    if (!NProgress.isStarted()) progressDelay = window.setTimeout(() => NProgress.start(), 160)
+    pendingRoute.value = to
     if (to.name === '404') {
       next()
       return
@@ -75,6 +69,7 @@ router.beforeEach(
     }
   },
 )
+installPageSlide(router)
 router.afterEach(finishProgress)
 router.onError((_error, to) => finishProgress(to))
 export const getChildRouteListByPathAndName = (path: any, name?: RouteRecordName | any) => {

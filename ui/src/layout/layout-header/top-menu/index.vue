@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getChildRouteListByPathAndName } from '@/router/index'
+import { topMenuRoutes } from '@/router/routes'
 import { hasPermission } from '@/utils/permission/index'
 import MenuItem from './MenuItem.vue'
 
@@ -34,19 +34,9 @@ watch(
   { immediate: true },
 )
 
-const topMenuList = computed(() => {
-  const menu = getChildRouteListByPathAndName('/', 'root').filter(
-    (item) =>
-      item.meta?.menu &&
-      (item.meta.permission ? hasPermission(item.meta.permission as any, 'OR') : true),
-  )
-  menu.sort(
-    (a, b) =>
-      (a.meta ? (a.meta.order ? (a.meta.order as number) : 1) : 1) -
-      (b.meta ? (b.meta.order ? (b.meta.order as number) : 1) : 1),
-  )
-  return menu
-})
+const topMenuList = computed(() => topMenuRoutes.filter(
+  item => !item.meta?.permission || hasPermission(item.meta.permission as any, 'OR'),
+))
 </script>
 <style scoped>
 .top-menu-container {
