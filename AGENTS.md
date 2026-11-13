@@ -1,25 +1,25 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides repository-specific development instructions for LiteKB.
 
 ## Project Overview
 
-MaxKB (Max Knowledge Brain) is an open-source enterprise-grade agent platform built on RAG, agentic workflows, and MCP tool-use. Backend is Python 3.11 / Django 5.2 / LangChain; frontend is Vue 3 / Vite. Data layer is PostgreSQL + pgvector and Redis; Celery for async work. GPL-3.0.
+LiteKB is a standalone RAG and workflow API derived from MaxKB Community Edition. Backend is Python 3.11 / Django 5.2 / LangChain and frontend is Vue 3 / Vite. PostgreSQL + pgvector stores application data. Redis and Celery handle background work. GPL-3.0. See docs/deployment.md for the Linux Compose deployment.
 
 ## Development Commands
 
 The backend is driven by a single entrypoint `main.py` (not `manage.py` directly). It sets `apps/` on `sys.path` and configures Django settings, so module imports are `from application...`, `from common...` — not `from apps.application...`.
 
 ```bash
-# Dev: runs collectstatic + migrate, then ONE service. You usually run all three in separate terminals.
+# Dev: runs collectstatic + migrate, then one service. Start web and worker in separate terminals.
 python main.py dev            # web      (Django runserver on 0.0.0.0:8080)
 python main.py dev celery     # celery worker (queues: celery, model)
-python main.py dev local_model # embedding/local model server on 127.0.0.1:11636
+python main.py dev local_model # optional embedding/local model server on 127.0.0.1:11636
 
-# Production-style start (spawns gunicorn + celery_default + local_model as watched daemons)
+# Legacy process supervisor. Compose runs API and worker separately by default.
 python main.py start all -d
-python main.py start web -w 3      # gunicorn + local_model
-python main.py start task          # celery_default + celery_model
+python main.py start web -w 3      # gunicorn, plus the model service if enabled
+python main.py start task          # worker consuming celery and model queues
 python main.py stop all            # stop daemons
 python main.py status              # daemon status
 
@@ -37,18 +37,16 @@ python apps/manage.py compilemessages            # compile .po -> .mo (required 
 Frontend (`ui/`):
 ```bash
 cd ui
-npm install
+npm ci
 npm run dev          # admin SPA (Vite dev server, proxies /admin/api & /chat/api -> :8080)
-npm run chat         # chat embed SPA
 npm run build        # build admin dist
-npm run build-chat   # build chat dist
 npm run lint         # eslint --fix
 npm run type-check   # vue-tsc
 ```
 
-Python linting: `ruff` (line-length 120, config in `pyproject.toml`). No test runner is configured; per-app `tests.py` files are empty stubs.
+Python linting uses `ruff` (line length 120). Run the Django integration suite with `python apps/manage.py test litekb_api maxkb.test_runtime_profile system_manage.test_branding users.test_bootstrap` using an isolated PostgreSQL instance with pgvector and Redis.
 
-Dependencies are managed with `uv` (`uv.lock`, `pyproject.toml`). Python is pinned to `~=3.11.0`.
+Python requires 3.11. The image resolves the selected dependencies from `pyproject.toml` with `uv`, using `installer/build-dependencies.sh`. The studio installs from `ui/package-lock.json`.
 
 ## Architecture
 
@@ -63,15 +61,16 @@ All runtime config comes from the `CONFIG` singleton (`apps/maxkb/const.py` + `c
 
 ### URL layout
 
-Two API surfaces, configured via `CONFIG.get_admin_path()` (default `/admin`) and `get_chat_path()` (default `/chat`):
-- `/admin/api/*` — management API (users, tools, models_provider, folders, knowledge, system_manage, application, trigger, oss, homepage). Backed by DRF + drf-spectacular (Swagger at `/admin/api-doc`).
-- `/chat/api/*` — runtime chat API (chat views + MCP endpoint at `chat/views/mcp.py`).
+Product and management surfaces:
+- `/v1/*` — project-scoped knowledge and Run API. The Python SDK in `sdk/python/` uses this surface. See `docs/knowledge-api.md`, `docs/run-api.md` and `docs/product-sdk.md`.
+- `/admin/api/*` — management API and authenticated studio debugging. Backed by DRF + drf-spectacular.
+- `/chat/api/*` — retained machine chat and MCP interfaces. The admin and legacy chat prefixes are configurable.
 
-The Vue admin SPA and chat SPA are served as Django static files from `ui/dist` (`STATICFILES_DIRS`).
+The Vue studio builds to `ui/dist/admin`.
 
 ### Model provider abstraction (`apps/models_provider/`)
 
-`IModelProvider` (abstract) -> per-vendor impl in `impl/<vendor>_model_provider/` (OpenAI, Anthropic, Gemini, Qwen, DeepSeek, Ollama, vLLM, Wenxin, Zhipu, Volcengine, AWS Bedrock, Tencent, Kimi, MiniMax, Xinference, local, etc.). Each provider registers `ModelInfo` (model type + credential + model class) into `ModelInfoManage`. Model types are `LLM`, `EMBEDDING`, `STT`, `TTS`, `IMAGE` (vision), `TTI` (image gen), `RERANKER`, `TTV`, `ITV` (`ModelTypeConst`). To add a model, register `ModelInfo` with a `MaxKBBaseModel` subclass and a `BaseModelCredential`. The local_model service serves the bundled sentence-transformers embedding model.
+Each vendor implements `IModelProvider` in `impl/<vendor>_model_provider/` and registers its model types, credentials and classes with `ModelInfoManage`. OpenAI-compatible, vLLM and SiliconFlow adapters ship by default. See `apps/maxkb/capabilities.py` for media, extended-provider and local-inference options. Local inference uses operator-provided model weights. To add a model, register `ModelInfo` with a `MaxKBBaseModel` subclass and a `BaseModelCredential`.
 
 ### Application & chat (`apps/application/`, `apps/chat/`)
 
@@ -83,19 +82,19 @@ Streaming chat responses go through `BaseToResponse` (`apps/common/handle/base_t
 
 ### RAG / knowledge (`apps/knowledge/`)
 
-Documents are split into paragraphs; paragraphs are embedded and stored via `vector/pg_vector.py` (pgvector). Search hits the vector store then optionally a reranker model. Celery tasks under `knowledge/task/` handle document parsing/embedding.
+Documents are split into paragraphs and indexed by pgvector. See `knowledge/vector/pg_vector.py` for vector queries and `knowledge/vector/hybrid.py` for independent lexical and vector candidates used by RRF. Tasks under `knowledge/task/` handle parsing and embedding. The labeled retrieval evaluation and client-side latency samples are under `benchmarks/`.
 
-### Async & scheduling (`apps/ops/`)
+### Async jobs (`apps/ops/`)
 
-Celery app `ops.celery` (name `MaxKB`) with two queues: `celery` (general) and `model` (model/long tasks). Broker + result backend is Redis (sentinel-aware). Tasks use a custom `hmac_signed_serializer`. `@celery_app.task` decorated functions are autodiscovered from every `INSTALLED_APPS`. `django-apscheduler` and `django-celery-beat` provide scheduled jobs. `celery-once` provides single-execution locking.
+Celery app `ops.celery` is named `LiteKB`. The worker consumes the `celery` and `model` queues and uses Redis as broker and result backend. Tasks use the custom `hmac_signed_serializer`. Historical scheduler tables are retained for upgrades. LiteKB does not start a scheduler or register web-sync jobs.
 
 ### MCP (`apps/chat/views/mcp.py`)
 
-MaxKB applications can be exposed as MCP tools: a JSON-RPC endpoint (`initialize`, `tools/list`, `tools/call`) routed through `chat.mcp.tools.MCPToolHandler`. MaxKB also *consumes* external MCP servers via `mcp_node` in the workflow and `langchain-mcp-adapters`.
+LiteKB applications can be exposed as MCP tools through the JSON-RPC methods `initialize`, `tools/list` and `tools/call` in `chat.mcp.tools.MCPToolHandler`. Workflows consume external MCP servers via `mcp_node` and `langchain-mcp-adapters`.
 
 ### Frontend (`ui/`)
 
-Two SPAs built from the same repo: admin (`npm run build`) and chat embed (`npm run build-chat`), both into `ui/dist`. Workflow canvas uses LogicFlow; markdown editor is md-editor-v3. Vite proxies `/admin/api` and `/chat/api` to `127.0.0.1:8080` in dev. Env files are in `ui/env/`.
+The studio is built with `npm run build`. Its workflow canvas uses LogicFlow and its markdown editor is md-editor-v3. Env files are in `ui/env/`.
 
 ### Sandbox
 
