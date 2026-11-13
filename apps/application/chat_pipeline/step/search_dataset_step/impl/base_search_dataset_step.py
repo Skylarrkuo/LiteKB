@@ -22,6 +22,7 @@ from common.db.search import native_search
 from common.utils.common import get_file_content
 from knowledge.models import Paragraph, Knowledge
 from knowledge.models import SearchMode
+from knowledge.vector.base_vector import normalize_for_embedding
 from maxkb.conf import PROJECT_DIR
 from models_provider.models import Model
 from models_provider.tools import get_model, get_model_by_id, get_model_default_params
@@ -59,6 +60,8 @@ class BaseSearchDatasetStep(ISearchDatasetStep):
         if len(knowledge_id_list) == 0:
             return []
         exec_problem_text = padding_problem_text if padding_problem_text is not None else problem_text
+        if search_mode == SearchMode.rrf:
+            exec_problem_text = normalize_for_embedding(exec_problem_text)
         model_id = get_embedding_id(knowledge_id_list)
         model = get_model_by_id(model_id, workspace_id)
         if model.model_type != "EMBEDDING":
@@ -85,7 +88,7 @@ class BaseSearchDatasetStep(ISearchDatasetStep):
             find_embedding = filter_embedding_list[-1]
             return (ParagraphPipelineModel.builder()
                     .add_paragraph(paragraph)
-                    .add_similarity(find_embedding.get('similarity'))
+                    .add_similarity(find_embedding.get('similarity'), find_embedding.get('rank_score'))
                     .add_comprehensive_score(find_embedding.get('comprehensive_score'))
                     .add_knowledge_name(paragraph.get('knowledge_name'))
                     .add_knowledge_type(paragraph.get('knowledge_type'))
@@ -120,6 +123,15 @@ class BaseSearchDatasetStep(ISearchDatasetStep):
             for paragraph_id in paragraph_id_list:
                 if not exist_paragraph_list.__contains__(paragraph_id):
                     vector.delete_by_paragraph_id(paragraph_id)
+        if 'rank_score' in embedding_list[0]:
+            by_id = {p['id']: p for p in paragraph_list}
+            ordered = [by_id[pid] for pid in paragraph_id_list if pid in by_id]
+            evidence = {h['paragraph_id']: h['similarity'] for h in embedding_list}
+            for paragraph in ordered:
+                if (paragraph['hit_handling_method'] == 'directly_return'
+                        and evidence[paragraph['id']] >= paragraph['directly_return_similarity']):
+                    return [paragraph]
+            return ordered
         # 如果存在直接返回的则取直接返回段落
         hit_handling_method_paragraph = [paragraph for paragraph in paragraph_list if
                                          (paragraph.get(

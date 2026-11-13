@@ -2,6 +2,7 @@ WITH vector_top AS (
 	SELECT paragraph_id,
 	       (embedding::vector(%s) <=> %s) AS distance
 	FROM embedding ${embedding_query}
+	AND vector_dims(embedding) = %s
 	ORDER BY (embedding::vector(%s) <=> %s)
 	LIMIT LEAST(%s * 10, 500)
 )

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "litekb-client"
+version = "0.1.0"
+description = "Python client for the LiteKB product API"
+requires-python = ">=3.10"
+license = {text = "GPL-3.0-only"}
+dependencies = []
+
+[tool.setuptools]
+packages = ["litekb_client"]

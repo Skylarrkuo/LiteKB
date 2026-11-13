@@ -6,29 +6,24 @@
     @date：2024/6/3 17:52
     @desc:
 """
-import re
 from typing import Type
 
-from django.core import validators
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from application.flow.common import WorkflowMode
 from application.flow.i_step_node import INode, NodeResult
 from common.utils.common import flat_map
+from knowledge.models import SearchMode
 
 
 class DatasetSettingSerializer(serializers.Serializer):
     # 需要查询的条数
     top_n = serializers.IntegerField(required=True,
                                      label=_("Reference segment number"))
-    # 相似度 0-1之间
     similarity = serializers.FloatField(required=True, max_value=2, min_value=0,
                                         label=_('similarity'))
-    search_mode = serializers.CharField(required=True, validators=[
-        validators.RegexValidator(regex=re.compile("^embedding|keywords|blend$"),
-                                  message=_("The type only supports embedding|keywords|blend"), code=500)
-    ], label=_("Retrieval Mode"))
+    search_mode = serializers.ChoiceField(choices=SearchMode.choices, label=_("Retrieval Mode"))
     max_paragraph_char_number = serializers.IntegerField(required=True,
                                                          label=_("Maximum number of words in a quoted segment"))
 

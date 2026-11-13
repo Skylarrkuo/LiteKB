@@ -6,16 +6,15 @@
     @date：2024/1/9 18:10
     @desc: 检索知识库
 """
-import re
 from abc import abstractmethod
 from typing import List, Type
 
-from django.core import validators
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from application.chat_pipeline.I_base_chat_pipeline import IBaseChatPipelineStep, ParagraphPipelineModel
 from application.chat_pipeline.pipeline_manage import PipelineManage
+from knowledge.models import SearchMode
 
 
 class ISearchDatasetStep(IBaseChatPipelineStep):
@@ -37,13 +36,9 @@ class ISearchDatasetStep(IBaseChatPipelineStep):
         # 需要查询的条数
         top_n = serializers.IntegerField(required=True,
                                          label=_("Reference segment number"))
-        # 相似度 0-1之间
-        similarity = serializers.FloatField(required=True, max_value=1, min_value=0,
+        similarity = serializers.FloatField(required=True, max_value=2, min_value=0,
                                             label=_("Similarity"))
-        search_mode = serializers.CharField(required=True, validators=[
-            validators.RegexValidator(regex=re.compile("^embedding|keywords|blend$"),
-                                      message=_("The type only supports embedding|keywords|blend"), code=500)
-        ], label=_("Retrieval Mode"))
+        search_mode = serializers.ChoiceField(choices=SearchMode.choices, label=_("Retrieval Mode"))
         workspace_id = serializers.CharField(required=True, label=_("Workspace ID"))
 
     def get_step_serializer(self, manage: PipelineManage) -> Type[InstanceSerializer]:

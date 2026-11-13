@@ -21,6 +21,7 @@ from common.db.search import native_search
 from common.utils.common import get_file_content
 from common.utils.shared_resource_auth import filter_authorized_ids
 from knowledge.models import Document, Paragraph, Knowledge, SearchMode
+from knowledge.vector.base_vector import normalize_for_embedding
 from maxkb.conf import PROJECT_DIR
 from models_provider.tools import get_model_instance_by_model_workspace_id
 
@@ -106,13 +107,14 @@ class BaseSearchKnowledgeNode(ISearchKnowledgeStepNode):
             return get_none_result(question)
         model_id = get_embedding_id(knowledge_id_list)
         embedding_model = get_model_instance_by_model_workspace_id(model_id, workspace_id)
-        embedding_value = embedding_model.embed_query(question)
+        search_text = normalize_for_embedding(question) if knowledge_setting.get('search_mode') == SearchMode.rrf else question
+        embedding_value = embedding_model.embed_query(search_text)
         vector = VectorStore.get_embedding_vector()
         exclude_document_id_list = [str(document.id) for document in
                                     QuerySet(Document).filter(
                                         knowledge_id__in=knowledge_id_list,
                                         is_active=False)]
-        embedding_list = vector.query(question, embedding_value, knowledge_id_list, document_id_list,
+        embedding_list = vector.query(search_text, embedding_value, knowledge_id_list, document_id_list,
                                       exclude_document_id_list,
                                       exclude_paragraph_id_list, True, knowledge_setting.get('top_n'),
                                       knowledge_setting.get('similarity'),
@@ -123,7 +125,11 @@ class BaseSearchKnowledgeNode(ISearchKnowledgeStepNode):
             return get_none_result(question)
         paragraph_list = self.list_paragraph(embedding_list, vector)
         result = [self.reset_paragraph(paragraph, embedding_list) for paragraph in paragraph_list]
-        result = sorted(result, key=lambda p: p.get('similarity'), reverse=True)
+        if knowledge_setting.get('search_mode') == SearchMode.rrf:
+            order = {str(hit['paragraph_id']): rank for rank, hit in enumerate(embedding_list)}
+            result.sort(key=lambda p: order[p['id']])
+        else:
+            result.sort(key=lambda p: p['similarity'], reverse=True)
         return NodeResult({'paragraph_list': result,
                            'is_hit_handling_method_list': [row for row in result if row.get('is_hit_handling_method')],
                            'data': '\n'.join(
@@ -146,6 +152,7 @@ class BaseSearchKnowledgeNode(ISearchKnowledgeStepNode):
             return {
                 **paragraph,
                 'similarity': find_embedding.get('similarity'),
+                **({'rank_score': find_embedding['rank_score']} if 'rank_score' in find_embedding else {}),
                 'is_hit_handling_method': find_embedding.get('similarity') > paragraph.get(
                     'directly_return_similarity') and paragraph.get('hit_handling_method') == 'directly_return',
                 'update_time': paragraph.get('update_time').strftime("%Y-%m-%d %H:%M:%S"),

@@ -1,0 +1,489 @@
+{
+  "date": "2026-11-12",
+  "runtime": "Windows x64, Python 3.11.15, PostgreSQL 16.15, pgvector 0.8.6, Redis 7.4.0, Celery solo x1, loopback HTTP",
+  "warmups_per_case_excluded": 2,
+  "concurrency": 1,
+  "message": "How long is the warranty?",
+  "fixed": "Published two-node graph with a literal reply.",
+  "rag": "Published simple agent, two documents, deterministic 3D HTTP embedding and direct passage return.",
+  "runs": {
+    "fixed": {
+      "successful_with_text": 20,
+      "nearest_rank": {
+        "submit_ms": {
+          "p50": 83.1,
+          "p95": 132.49
+        },
+        "ttft_ms": {
+          "p50": 384.2,
+          "p95": 495.45
+        },
+        "done_ms": {
+          "p50": 493.0,
+          "p95": 608.39
+        }
+      },
+      "samples": [
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 108.06,
+          "ttft_ms": 475.15,
+          "done_ms": 585.86
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 83.28,
+          "ttft_ms": 437.86,
+          "done_ms": 543.16
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 79.8,
+          "ttft_ms": 384.2,
+          "done_ms": 493.0
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 120.72,
+          "ttft_ms": 495.45,
+          "done_ms": 601.03
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 72.23,
+          "ttft_ms": 322.18,
+          "done_ms": 430.12
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 74.14,
+          "ttft_ms": 325.3,
+          "done_ms": 431.58
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 73.7,
+          "ttft_ms": 494.99,
+          "done_ms": 608.39
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 61.07,
+          "ttft_ms": 394.5,
+          "done_ms": 501.4
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 90.21,
+          "ttft_ms": 438.05,
+          "done_ms": 542.39
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 94.3,
+          "ttft_ms": 383.52,
+          "done_ms": 491.32
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 83.55,
+          "ttft_ms": 332.93,
+          "done_ms": 594.53
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 83.1,
+          "ttft_ms": 423.36,
+          "done_ms": 534.37
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 92.47,
+          "ttft_ms": 434.01,
+          "done_ms": 434.26
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 58.62,
+          "ttft_ms": 414.03,
+          "done_ms": 522.74
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 132.49,
+          "ttft_ms": 354.83,
+          "done_ms": 459.43
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 75.41,
+          "ttft_ms": 370.63,
+          "done_ms": 475.73
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 216.74,
+          "ttft_ms": 516.56,
+          "done_ms": 796.44
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 67.11,
+          "ttft_ms": 311.22,
+          "done_ms": 417.16
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 80.48,
+          "ttft_ms": 319.19,
+          "done_ms": 429.5
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 87.27,
+          "ttft_ms": 379.92,
+          "done_ms": 484.6
+        }
+      ]
+    },
+    "rag": {
+      "successful_with_text": 20,
+      "nearest_rank": {
+        "submit_ms": {
+          "p50": 89.43,
+          "p95": 117.49
+        },
+        "ttft_ms": {
+          "p50": 272.27,
+          "p95": 606.4
+        },
+        "done_ms": {
+          "p50": 398.07,
+          "p95": 694.46
+        }
+      },
+      "samples": [
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 93.95,
+          "ttft_ms": 228.75,
+          "done_ms": 333.25
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 81.55,
+          "ttft_ms": 227.67,
+          "done_ms": 487.34
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 117.49,
+          "ttft_ms": 272.27,
+          "done_ms": 383.57
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 96.83,
+          "ttft_ms": 403.88,
+          "done_ms": 404.16
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 72.56,
+          "ttft_ms": 210.17,
+          "done_ms": 474.87
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 80.5,
+          "ttft_ms": 211.43,
+          "done_ms": 318.62
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 93.05,
+          "ttft_ms": 397.81,
+          "done_ms": 398.07
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 109.52,
+          "ttft_ms": 249.0,
+          "done_ms": 363.72
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 86.89,
+          "ttft_ms": 235.34,
+          "done_ms": 344.03
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 92.61,
+          "ttft_ms": 329.7,
+          "done_ms": 436.08
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 75.36,
+          "ttft_ms": 211.29,
+          "done_ms": 319.68
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 86.33,
+          "ttft_ms": 372.16,
+          "done_ms": 372.58
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 89.43,
+          "ttft_ms": 253.91,
+          "done_ms": 534.45
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 248.5,
+          "ttft_ms": 606.4,
+          "done_ms": 723.01
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 116.3,
+          "ttft_ms": 406.08,
+          "done_ms": 513.33
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 68.83,
+          "ttft_ms": 361.54,
+          "done_ms": 361.8
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 73.64,
+          "ttft_ms": 209.2,
+          "done_ms": 314.72
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 70.42,
+          "ttft_ms": 691.41,
+          "done_ms": 694.46
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 110.9,
+          "ttft_ms": 409.8,
+          "done_ms": 514.96
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 103.27,
+          "ttft_ms": 399.25,
+          "done_ms": 504.27
+        }
+      ]
+    },
+    "rrf": {
+      "successful_with_text": 20,
+      "nearest_rank": {
+        "submit_ms": {
+          "p50": 102.89,
+          "p95": 186.39
+        },
+        "ttft_ms": {
+          "p50": 452.71,
+          "p95": 576.12
+        },
+        "done_ms": {
+          "p50": 604.07,
+          "p95": 833.86
+        }
+      },
+      "samples": [
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 157.06,
+          "ttft_ms": 562.71,
+          "done_ms": 833.86
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 164.78,
+          "ttft_ms": 408.89,
+          "done_ms": 519.93
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 158.35,
+          "ttft_ms": 459.71,
+          "done_ms": 460.14
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 162.91,
+          "ttft_ms": 458.85,
+          "done_ms": 726.33
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 52.4,
+          "ttft_ms": 433.83,
+          "done_ms": 693.48
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 52.61,
+          "ttft_ms": 452.71,
+          "done_ms": 558.07
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 98.42,
+          "ttft_ms": 488.28,
+          "done_ms": 595.82
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 76.32,
+          "ttft_ms": 480.66,
+          "done_ms": 740.73
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 84.08,
+          "ttft_ms": 478.13,
+          "done_ms": 587.5
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 123.0,
+          "ttft_ms": 423.25,
+          "done_ms": 687.72
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 126.13,
+          "ttft_ms": 359.99,
+          "done_ms": 467.84
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 96.39,
+          "ttft_ms": 486.36,
+          "done_ms": 604.07
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 158.33,
+          "ttft_ms": 439.55,
+          "done_ms": 547.34
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 75.33,
+          "ttft_ms": 370.87,
+          "done_ms": 480.07
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 423.48,
+          "ttft_ms": 699.16,
+          "done_ms": 804.99
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 102.89,
+          "ttft_ms": 396.06,
+          "done_ms": 501.67
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 62.95,
+          "ttft_ms": 454.81,
+          "done_ms": 713.52
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 92.76,
+          "ttft_ms": 377.83,
+          "done_ms": 640.33
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 186.39,
+          "ttft_ms": 576.12,
+          "done_ms": 836.39
+        },
+        {
+          "status": "succeeded",
+          "error": "",
+          "submit_ms": 116.55,
+          "ttft_ms": 403.99,
+          "done_ms": 662.63
+        }
+      ]
+    }
+  },
+  "rrf": "Same published simple-agent configuration as rag, with search_mode=rrf."
+}

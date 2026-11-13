@@ -1,0 +1,48 @@
+{"id":"acct-reset","text":"忘记登录密码时，在账户登录页选择找回密码，使用邮箱验证码重置口令。"}
+{"id":"acct-unlock","text":"连续输错口令会冻结账号十五分钟。管理员可在账号列表中手动解锁。"}
+{"id":"acct-mfa","text":"更换手机前应保存双重验证的恢复码。手机遗失时使用备用恢复码继续登录。"}
+{"id":"acct-invite","text":"邀请成员需要在工作区填写收件人邮箱，邀请链接四十八小时内有效。"}
+{"id":"acct-session","text":"在设备管理页可以强制退出全部已登录终端。签出所有会话后需重新认证。"}
+{"id":"auth-rotate","text":"Rotate a service API key by issuing a replacement, switching clients, then revoking the old credential."}
+{"id":"auth-limit","text":"The rate limit for API requests is per project. After HTTP 429, respect Retry-After before retrying."}
+{"id":"auth-expiry","text":"When a signed access token expires, obtain a new token using the refresh credential."}
+{"id":"auth-scope","text":"A service credential belongs to one project. Check the target knowledge grant when an endpoint returns 404."}
+{"id":"auth-logs","text":"Audit logs record the service account, resource, action and time. Administrators can export the logs."}
+{"id":"ship-address","text":"包裹交给快递前可在订单页修改收货地址。已发货时联系承运商办理改派。"}
+{"id":"ship-delay","text":"物流轨迹超过七十二小时未更新，可通过订单编号提交延误工单。"}
+{"id":"ship-break","text":"快递箱破损或商品碎裂时，保留外包装照片并申请运输理赔。"}
+{"id":"returns-window","text":"签收后七天内可发起无理由退货。请保留包装并在订单页提交退回申请。"}
+{"id":"returns-money","text":"退回的货物验收后，退款将在五个工作日内原路返还到付款账户。"}
+{"id":"billing-vat","text":"申请增值税发票需要公司抬头和纳税人识别号，开票资料可在账单中心填写。"}
+{"id":"billing-renew","text":"关闭自动续费后，订阅在本期结束时到期。已支付的本期费用照常计费。"}
+{"id":"billing-card","text":"Update the billing card in payment settings. An unpaid invoice can be retried after the new card is verified."}
+{"id":"billing-csv","text":"Download itemized billing records by selecting a date range and exporting the usage report as CSV."}
+{"id":"kb-scan","text":"扫描版 PDF 缺少文字层，先执行 OCR 文字识别再导入知识库，以便检索图片中的字。"}
+{"id":"kb-chunks","text":"长文档应按标题切成多个分段。缩短分段并设置重叠长度可以保留段落间上下文。"}
+{"id":"kb-index","text":"知识库更换向量模型后需要重建索引。在文档页面查看向量化任务状态，失败任务可重新提交。"}
+{"id":"kb-citation","text":"Each retrieval hit identifies its document and paragraph. Use these references to display a citation beside the answer."}
+{"id":"kb-tags","text":"标签可按产品线标记文档。编辑知识库标签字典后，将对应标签关联到文档。"}
+{"id":"kb-backup","text":"知识内容可以导出为 JSON 备份。在目标知识库导入备份会生成新的文档和分段标识。"}
+{"id":"kb-keywords","text":"Keyword search matches indexed terms. Add a domain term when tokenization splits a brand or part number incorrectly."}
+{"id":"kb-vector","text":"Embedding search ranks passages by cosine distance. The query vector must match the index dimension."}
+{"id":"ops-stream","text":"Reconnect an interrupted event stream with the last received event ID. The server replays subsequent run events."}
+{"id":"ops-retry","text":"Retry a failed workflow step after its external dependency recovers. Record each attempt separately."}
+{"id":"ops-loop","text":"Set a maximum iteration count on the loop node. Execution stops when the exit condition is true."}
+{"id":"ops-timeout","text":"When a model endpoint times out, inspect provider latency and the configured request deadline."}
+{"id":"ops-cancel","text":"Cancel an active run to stop scheduling further steps. A cancelled run retains its execution history."}
+{"id":"device-nx210","text":"NX-210 网关使用圆口 12V 电源，长按机身蓝键八秒可恢复出厂设置。"}
+{"id":"device-nx201","text":"NX-201 网关通过 USB-C 取电。恢复出厂设置需要按住底部复位键三秒。"}
+{"id":"device-nx210p","text":"NX-210-Pro industrial gateway uses a terminal block. Factory reset requires holding the recessed switch for fifteen seconds."}
+{"id":"device-r45","text":"The R-45 sensor uses a CR2032 coin cell. Open the back cover to replace its battery."}
+{"id":"device-r54","text":"The R-54 sensor uses two AAA batteries. Replace the pair together and confirm polarity."}
+{"id":"device-aj7","text":"AJ-7 打印机显示 E-134 表示进纸辊卡纸，关闭电源后取出纸张。"}
+{"id":"device-aj8","text":"AJ-8 打印机显示 E-143 表示墨盒仓盖未关闭，重新盖紧后继续打印。"}
+{"id":"device-bridge","text":"For Bridge firmware v2.1.2, disable roaming before upgrading. Restore roaming after the device restarts."}
+{"id":"device-bridge21","text":"Bridge firmware v2.2.1 adds Wi-Fi roaming support. Keep roaming enabled when applying the patch."}
+{"id":"device-led","text":"Status LED blinking amber means the gateway lost its upstream connection. Check its Ethernet cable."}
+{"id":"ops-backup","text":"Database backups run nightly. To restore a snapshot, select the desired timestamp and verify checksums."}
+{"id":"ops-webhook","text":"When a webhook delivery fails, inspect HTTP response codes and confirm the receiving URL."}
+{"id":"net-proxy","text":"通过代理访问外部模型时配置 HTTP 代理地址。内网模型可加入代理排除列表。"}
+{"id":"net-cert","text":"证书过期会导致 TLS 握手失败。更新证书链并重启入口服务后重试。"}
+{"id":"net-dns","text":"如果域名无法解析，先检查 DNS 服务器，再刷新本机域名解析缓存。"}
+{"id":"billing-coupon","text":"优惠券在结算页面使用。订单完成后无法补用折扣码。"}

@@ -1,0 +1,672 @@
+{
+  "k": 3,
+  "rankings": {
+    "zh01": {
+      "embedding": [
+        "acct-reset",
+        "acct-mfa",
+        "billing-coupon"
+      ],
+      "blend": [
+        "acct-reset",
+        "acct-mfa",
+        "acct-session"
+      ],
+      "keywords": [
+        "acct-reset",
+        "acct-mfa",
+        "acct-session"
+      ],
+      "rrf": [
+        "acct-reset",
+        "acct-mfa",
+        "acct-session"
+      ]
+    },
+    "zh02": {
+      "embedding": [
+        "billing-vat",
+        "acct-invite",
+        "acct-unlock"
+      ],
+      "blend": [
+        "billing-vat",
+        "acct-invite",
+        "acct-unlock"
+      ],
+      "keywords": [
+        "billing-vat",
+        "ship-break",
+        "acct-invite"
+      ],
+      "rrf": [
+        "billing-vat",
+        "acct-invite",
+        "returns-window"
+      ]
+    },
+    "zh03": {
+      "embedding": [
+        "ship-address",
+        "ship-break",
+        "returns-window"
+      ],
+      "blend": [
+        "ship-address",
+        "ship-break",
+        "returns-window"
+      ],
+      "keywords": [
+        "ship-address",
+        "net-proxy"
+      ],
+      "rrf": [
+        "ship-address",
+        "net-proxy",
+        "ship-break"
+      ]
+    },
+    "zh04": {
+      "embedding": [
+        "kb-index",
+        "net-cert",
+        "net-dns"
+      ],
+      "blend": [
+        "kb-index",
+        "net-cert",
+        "net-dns"
+      ],
+      "keywords": [
+        "kb-index"
+      ],
+      "rrf": [
+        "kb-index",
+        "net-cert",
+        "net-dns"
+      ]
+    },
+    "zh05": {
+      "embedding": [
+        "kb-scan",
+        "kb-backup",
+        "kb-tags"
+      ],
+      "blend": [
+        "kb-scan",
+        "kb-backup",
+        "kb-tags"
+      ],
+      "keywords": [
+        "kb-scan",
+        "billing-vat"
+      ],
+      "rrf": [
+        "kb-scan",
+        "billing-vat",
+        "kb-backup"
+      ]
+    },
+    "zh06": {
+      "embedding": [
+        "kb-tags",
+        "kb-chunks",
+        "kb-backup"
+      ],
+      "blend": [
+        "kb-tags",
+        "kb-chunks",
+        "kb-backup"
+      ],
+      "keywords": [
+        "kb-tags",
+        "kb-backup",
+        "kb-chunks"
+      ],
+      "rrf": [
+        "kb-tags",
+        "kb-chunks",
+        "kb-backup"
+      ]
+    },
+    "zh07": {
+      "embedding": [
+        "returns-window",
+        "returns-money",
+        "ship-break"
+      ],
+      "blend": [
+        "returns-window",
+        "returns-money",
+        "ship-break"
+      ],
+      "keywords": [
+        "returns-window",
+        "returns-money"
+      ],
+      "rrf": [
+        "returns-window",
+        "returns-money",
+        "ship-break"
+      ]
+    },
+    "zh08": {
+      "embedding": [
+        "net-cert",
+        "net-dns",
+        "kb-index"
+      ],
+      "blend": [
+        "net-cert",
+        "net-dns",
+        "kb-index"
+      ],
+      "keywords": [
+        "net-cert",
+        "kb-index"
+      ],
+      "rrf": [
+        "net-cert",
+        "kb-index",
+        "net-dns"
+      ]
+    },
+    "en01": {
+      "embedding": [
+        "auth-rotate",
+        "ops-loop",
+        "auth-logs"
+      ],
+      "blend": [
+        "auth-rotate",
+        "auth-logs",
+        "auth-scope"
+      ],
+      "keywords": [
+        "auth-rotate",
+        "auth-logs",
+        "auth-limit"
+      ],
+      "rrf": [
+        "auth-rotate",
+        "auth-logs",
+        "auth-limit"
+      ]
+    },
+    "en02": {
+      "embedding": [
+        "ops-cancel",
+        "ops-stream",
+        "ops-backup"
+      ],
+      "blend": [
+        "ops-cancel",
+        "ops-stream",
+        "ops-backup"
+      ],
+      "keywords": [
+        "ops-cancel",
+        "ops-stream",
+        "ops-backup"
+      ],
+      "rrf": [
+        "ops-cancel",
+        "ops-stream",
+        "ops-backup"
+      ]
+    },
+    "en03": {
+      "embedding": [
+        "auth-logs",
+        "billing-csv",
+        "auth-rotate"
+      ],
+      "blend": [
+        "auth-limit",
+        "ops-loop",
+        "auth-logs"
+      ],
+      "keywords": [
+        "auth-limit",
+        "ops-webhook",
+        "ops-loop"
+      ],
+      "rrf": [
+        "auth-limit",
+        "ops-webhook",
+        "ops-loop"
+      ]
+    },
+    "en04": {
+      "embedding": [
+        "kb-citation",
+        "device-led",
+        "ops-cancel"
+      ],
+      "blend": [
+        "kb-citation",
+        "device-led",
+        "ops-cancel"
+      ],
+      "keywords": [
+        "kb-citation"
+      ],
+      "rrf": [
+        "kb-citation",
+        "device-led",
+        "ops-cancel"
+      ]
+    },
+    "en05": {
+      "embedding": [
+        "auth-logs",
+        "billing-card",
+        "billing-csv"
+      ],
+      "blend": [
+        "billing-card",
+        "auth-logs",
+        "billing-csv"
+      ],
+      "keywords": [
+        "billing-card",
+        "billing-csv",
+        "device-r54"
+      ],
+      "rrf": [
+        "billing-card",
+        "billing-csv",
+        "device-r45"
+      ]
+    },
+    "en06": {
+      "embedding": [
+        "ops-backup",
+        "ops-stream",
+        "ops-cancel"
+      ],
+      "blend": [
+        "ops-backup",
+        "ops-stream",
+        "ops-cancel"
+      ],
+      "keywords": [
+        "ops-backup",
+        "device-bridge"
+      ],
+      "rrf": [
+        "ops-backup",
+        "device-bridge",
+        "ops-stream"
+      ]
+    },
+    "en07": {
+      "embedding": [
+        "ops-stream",
+        "ops-cancel",
+        "ops-backup"
+      ],
+      "blend": [
+        "ops-cancel",
+        "ops-stream",
+        "ops-backup"
+      ],
+      "keywords": [
+        "ops-cancel",
+        "device-led",
+        "ops-loop"
+      ],
+      "rrf": [
+        "ops-cancel",
+        "device-led",
+        "kb-citation"
+      ]
+    },
+    "en08": {
+      "embedding": [
+        "ops-webhook",
+        "billing-csv",
+        "ops-timeout"
+      ],
+      "blend": [
+        "kb-vector",
+        "ops-webhook",
+        "kb-keywords"
+      ],
+      "keywords": [
+        "kb-vector",
+        "kb-keywords"
+      ],
+      "rrf": [
+        "kb-vector",
+        "kb-keywords",
+        "ops-webhook"
+      ]
+    },
+    "syn01": {
+      "embedding": [
+        "acct-mfa",
+        "billing-coupon",
+        "acct-reset"
+      ],
+      "blend": [
+        "acct-mfa",
+        "acct-session",
+        "billing-coupon"
+      ],
+      "keywords": [
+        "acct-mfa",
+        "acct-session"
+      ],
+      "rrf": [
+        "acct-mfa",
+        "acct-session",
+        "billing-coupon"
+      ]
+    },
+    "syn02": {
+      "embedding": [
+        "returns-window",
+        "ship-break",
+        "ship-address"
+      ],
+      "blend": [
+        "returns-window",
+        "ship-break",
+        "ship-address"
+      ],
+      "keywords": [],
+      "rrf": [
+        "returns-window",
+        "ship-break",
+        "ship-address"
+      ]
+    },
+    "syn03": {
+      "embedding": [
+        "acct-session",
+        "acct-reset",
+        "acct-unlock"
+      ],
+      "blend": [
+        "acct-session",
+        "acct-reset",
+        "acct-unlock"
+      ],
+      "keywords": [],
+      "rrf": [
+        "acct-session",
+        "acct-reset",
+        "acct-unlock"
+      ]
+    },
+    "syn04": {
+      "embedding": [
+        "kb-index",
+        "kb-scan",
+        "kb-backup"
+      ],
+      "blend": [
+        "kb-index",
+        "kb-backup",
+        "kb-scan"
+      ],
+      "keywords": [
+        "kb-index",
+        "net-proxy",
+        "kb-backup"
+      ],
+      "rrf": [
+        "kb-index",
+        "kb-backup",
+        "kb-scan"
+      ]
+    },
+    "syn05": {
+      "embedding": [
+        "auth-limit",
+        "billing-card",
+        "auth-logs"
+      ],
+      "blend": [
+        "auth-limit",
+        "billing-card",
+        "ops-retry"
+      ],
+      "keywords": [
+        "auth-limit",
+        "ops-retry",
+        "billing-card"
+      ],
+      "rrf": [
+        "auth-limit",
+        "billing-card",
+        "ops-retry"
+      ]
+    },
+    "syn06": {
+      "embedding": [
+        "auth-limit",
+        "device-nx210p",
+        "auth-logs"
+      ],
+      "blend": [
+        "auth-limit",
+        "device-nx210p",
+        "auth-logs"
+      ],
+      "keywords": [],
+      "rrf": [
+        "auth-limit",
+        "device-nx210p",
+        "auth-logs"
+      ]
+    },
+    "syn07": {
+      "embedding": [
+        "auth-logs",
+        "billing-card",
+        "billing-csv"
+      ],
+      "blend": [
+        "auth-logs",
+        "billing-card",
+        "billing-csv"
+      ],
+      "keywords": [],
+      "rrf": [
+        "auth-logs",
+        "billing-card",
+        "billing-csv"
+      ]
+    },
+    "syn08": {
+      "embedding": [
+        "ops-loop",
+        "auth-logs",
+        "billing-csv"
+      ],
+      "blend": [
+        "ops-loop",
+        "auth-scope",
+        "auth-logs"
+      ],
+      "keywords": [
+        "device-bridge",
+        "auth-scope",
+        "ops-backup"
+      ],
+      "rrf": [
+        "auth-scope",
+        "ops-backup",
+        "device-bridge"
+      ]
+    },
+    "sku01": {
+      "embedding": [
+        "device-nx201",
+        "device-nx210",
+        "device-nx210p"
+      ],
+      "blend": [
+        "device-nx201",
+        "device-nx210",
+        "acct-mfa"
+      ],
+      "keywords": [
+        "device-nx201",
+        "device-nx210",
+        "acct-mfa"
+      ],
+      "rrf": [
+        "device-nx201",
+        "device-nx210",
+        "acct-mfa"
+      ]
+    },
+    "sku02": {
+      "embedding": [
+        "device-nx201",
+        "device-nx210",
+        "device-nx210p"
+      ],
+      "blend": [
+        "device-nx201",
+        "device-nx210",
+        "device-nx210p"
+      ],
+      "keywords": [
+        "device-nx201"
+      ],
+      "rrf": [
+        "device-nx201",
+        "device-nx210",
+        "device-nx210p"
+      ]
+    },
+    "sku03": {
+      "embedding": [
+        "device-nx210p",
+        "device-nx210",
+        "device-nx201"
+      ],
+      "blend": [
+        "device-nx210p",
+        "device-nx210",
+        "device-nx201"
+      ],
+      "keywords": [
+        "device-nx210p"
+      ],
+      "rrf": [
+        "device-nx210p",
+        "device-nx210",
+        "device-nx201"
+      ]
+    },
+    "sku04": {
+      "embedding": [
+        "device-r45",
+        "device-r54",
+        "device-nx210p"
+      ],
+      "blend": [
+        "device-r45",
+        "device-r54",
+        "device-nx210p"
+      ],
+      "keywords": [
+        "device-r45",
+        "auth-rotate"
+      ],
+      "rrf": [
+        "device-r45",
+        "device-r54",
+        "auth-rotate"
+      ]
+    },
+    "sku05": {
+      "embedding": [
+        "device-r54",
+        "device-r45",
+        "device-nx210p"
+      ],
+      "blend": [
+        "device-r54",
+        "device-r45",
+        "device-nx210p"
+      ],
+      "keywords": [
+        "device-r54",
+        "device-r45",
+        "device-nx210p"
+      ],
+      "rrf": [
+        "device-r54",
+        "device-r45",
+        "device-nx210p"
+      ]
+    },
+    "sku06": {
+      "embedding": [
+        "device-aj7",
+        "device-aj8",
+        "billing-renew"
+      ],
+      "blend": [
+        "device-aj7",
+        "device-aj8",
+        "billing-renew"
+      ],
+      "keywords": [
+        "device-aj7"
+      ],
+      "rrf": [
+        "device-aj7",
+        "device-aj8",
+        "billing-renew"
+      ]
+    },
+    "sku07": {
+      "embedding": [
+        "device-aj8",
+        "device-aj7",
+        "billing-renew"
+      ],
+      "blend": [
+        "device-aj8",
+        "device-aj7",
+        "billing-renew"
+      ],
+      "keywords": [
+        "device-aj8"
+      ],
+      "rrf": [
+        "device-aj8",
+        "device-aj7",
+        "billing-renew"
+      ]
+    },
+    "sku08": {
+      "embedding": [
+        "device-bridge21",
+        "device-bridge",
+        "auth-limit"
+      ],
+      "blend": [
+        "device-bridge",
+        "device-bridge21",
+        "auth-limit"
+      ],
+      "keywords": [
+        "device-bridge",
+        "device-bridge21"
+      ],
+      "rrf": [
+        "device-bridge",
+        "device-bridge21",
+        "auth-limit"
+      ]
+    }
+  }
+}

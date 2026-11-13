@@ -1,0 +1,32 @@
+{"id":"zh01","group":"zh","query":"登录密码忘记了如何重置","qrels":{"acct-reset":2}}
+{"id":"zh02","group":"zh","query":"申请增值税发票需填写哪些公司资料","qrels":{"billing-vat":2}}
+{"id":"zh03","group":"zh","query":"包裹已发货还能修改收货地址吗","qrels":{"ship-address":2}}
+{"id":"zh04","group":"zh","query":"在哪里查看向量化任务状态","qrels":{"kb-index":2}}
+{"id":"zh05","group":"zh","query":"扫描 PDF 如何进行文字识别","qrels":{"kb-scan":2}}
+{"id":"zh06","group":"zh","query":"怎么给文档关联产品线标签","qrels":{"kb-tags":2}}
+{"id":"zh07","group":"zh","query":"七天退货以及退款到账时间","qrels":{"returns-window":2,"returns-money":2}}
+{"id":"zh08","group":"zh","query":"TLS 证书过期握手失败","qrels":{"net-cert":2}}
+{"id":"en01","group":"en","query":"How can I rotate a service API key?","qrels":{"auth-rotate":2}}
+{"id":"en02","group":"en","query":"How do we replay run events on reconnection?","qrels":{"ops-stream":2}}
+{"id":"en03","group":"en","query":"Why do I get HTTP 429 and when should I retry?","qrels":{"auth-limit":2}}
+{"id":"en04","group":"en","query":"How do retrieval hits cite their source paragraph?","qrels":{"kb-citation":2}}
+{"id":"en05","group":"en","query":"Which payment settings let me replace a billing card?","qrels":{"billing-card":2}}
+{"id":"en06","group":"en","query":"How do I restore a database snapshot?","qrels":{"ops-backup":2}}
+{"id":"en07","group":"en","query":"Does stopping a run keep its execution history?","qrels":{"ops-cancel":2}}
+{"id":"en08","group":"en","query":"Compare keyword term matching and embedding vector distance","qrels":{"kb-keywords":2,"kb-vector":2}}
+{"id":"syn01","group":"paraphrase","query":"手机丢了，双因素认证没法收码","qrels":{"acct-mfa":2}}
+{"id":"syn02","group":"paraphrase","query":"买的东西运来就碎了，怎么索赔","qrels":{"ship-break":2}}
+{"id":"syn03","group":"paraphrase","query":"不想下个月再扣会员费","qrels":{"billing-renew":2}}
+{"id":"syn04","group":"paraphrase","query":"换了大模型的嵌入维数，原来的知识怎么重新算","qrels":{"kb-index":2,"kb-vector":1}}
+{"id":"syn05","group":"paraphrase","query":"Sign me out everywhere after losing my laptop","qrels":{"acct-session":2}}
+{"id":"syn06","group":"paraphrase","query":"The parcel tracking has been silent for days","qrels":{"ship-delay":2}}
+{"id":"syn07","group":"paraphrase","query":"The bot is stuck repeating the same actions forever","qrels":{"ops-loop":2}}
+{"id":"syn08","group":"paraphrase","query":"How can I archive my articles and restore them in another knowledge base?","qrels":{"kb-backup":2}}
+{"id":"sku01","group":"identifier","query":"NX-210 恢复出厂需要按多久","qrels":{"device-nx210":2}}
+{"id":"sku02","group":"identifier","query":"NX-201 如何供电","qrels":{"device-nx201":2}}
+{"id":"sku03","group":"identifier","query":"factory reset NX-210-Pro","qrels":{"device-nx210p":2}}
+{"id":"sku04","group":"identifier","query":"R-45 replacement battery size","qrels":{"device-r45":2}}
+{"id":"sku05","group":"identifier","query":"R-54 uses which batteries?","qrels":{"device-r54":2}}
+{"id":"sku06","group":"identifier","query":"AJ-7 E-134","qrels":{"device-aj7":2}}
+{"id":"sku07","group":"identifier","query":"E-143 是什么故障","qrels":{"device-aj8":2}}
+{"id":"sku08","group":"identifier","query":"Bridge v2.1.2 roaming during upgrade","qrels":{"device-bridge":2}}
