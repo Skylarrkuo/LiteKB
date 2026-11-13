@@ -2,6 +2,9 @@ export default {
   title: 'Model',
   provider: 'Provider',
   providerPlaceholder: 'Select Provider',
+  officialDocs: 'API reference',
+  editSchema: 'Edit parameter definitions',
+  retryDefaults: 'Reload model settings',
   addModel: 'Add Model',
 
   delete: {
@@ -46,7 +49,7 @@ export default {
     modeName: {
       label: 'Model Name',
       placeholder: 'Set a name for the base model',
-      tooltip: 'Custom model name in MaxKB',
+      tooltip: 'Custom model name in LiteKB',
       requiredMessage: 'Model name cannot be empty',
     },
     permissionType: {

@@ -10,7 +10,7 @@ from common.auth import TokenAuth
 from common.auth.authentication import has_permissions
 from common.constants.permission_constants import PermissionConstants
 from models_provider.api.provide import ProvideApi
-from models_provider.constants.model_provider_constants import ModelProvideConstants
+from models_provider.constants.model_provider_constants import PROVIDERS, get_provider
 from models_provider.serializers.model_serializer import get_default_model_params_setting
 
 
@@ -27,14 +27,14 @@ class Provide(APIView):
         model_type = request.query_params.get('model_type')
         if model_type:
             providers = []
-            for key in ModelProvideConstants.__members__:
-                if len([item for item in ModelProvideConstants[key].value.get_model_type_list() if
+            for key in PROVIDERS:
+                if len([item for item in get_provider(key).get_model_type_list() if
                         item['value'] == model_type]) > 0:
-                    providers.append(ModelProvideConstants[key].value.get_model_provide_info().to_dict())
+                    providers.append(get_provider(key).get_model_provide_info().to_dict())
             return result.success(providers)
         return result.success(
-            [ModelProvideConstants[key].value.get_model_provide_info().to_dict() for key in
-             ModelProvideConstants.__members__])
+            [get_provider(key).get_model_provide_info().to_dict() for key in
+             PROVIDERS])
 
     class ModelTypeList(APIView):
         authentication_classes = [TokenAuth]
@@ -48,7 +48,7 @@ class Provide(APIView):
                        tags=[_('Model')])  # type: ignore
         def get(self, request: Request):
             provider = request.query_params.get('provider')
-            return result.success(ModelProvideConstants[provider].value.get_model_type_list())
+            return result.success(get_provider(provider).get_model_type_list())
 
     class ModelList(APIView):
         authentication_classes = [TokenAuth]
@@ -65,7 +65,7 @@ class Provide(APIView):
             model_type = request.query_params.get('model_type')
 
             return result.success(
-                ModelProvideConstants[provider].value.get_model_list(
+                get_provider(provider).get_model_list(
                     model_type))
 
     class ModelParamsForm(APIView):
@@ -100,4 +100,4 @@ class Provide(APIView):
             model_type = request.query_params.get('model_type')
             model_name = request.query_params.get('model_name')
             return result.success(
-                ModelProvideConstants[provider].value.get_model_credential(model_type, model_name).to_form_list())
+                get_provider(provider).get_model_credential(model_type, model_name).to_form_list())

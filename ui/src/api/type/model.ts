@@ -127,6 +127,9 @@ interface EditModelRequest {
 }
 
 interface BaseModel {
+  docs_url?: string
+  status?: string
+  is_default?: boolean
   /**
    * 基础模型名称
    */

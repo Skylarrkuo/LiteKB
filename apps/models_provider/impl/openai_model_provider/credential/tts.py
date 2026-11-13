@@ -1,34 +1,21 @@
 # coding=utf-8
 from typing import Dict
 
-from django.utils.translation import gettext_lazy as _, gettext
+from django.utils.translation import gettext
 
 from common import forms
 from common.exception.app_exception import AppApiException
-from common.forms import BaseForm, TooltipLabel
+from common.forms import BaseForm
 from models_provider.base_model_provider import BaseModelCredential, ValidCode
 from common.utils.logger import maxkb_logger
+from models_provider.impl.openai_model_provider.profiles import choices, family
 
 class OpenAITTSModelGeneralParams(BaseForm):
-    # alloy, echo, fable, onyx, nova, shimmer
-    voice = forms.SingleSelect(
-        TooltipLabel('Voice',
-                     _('Try out the different sounds (Alloy, Echo, Fable, Onyx, Nova, and Sparkle) to find one that suits your desired tone and audience. The current voiceover is optimized for English.')),
-        required=True, default_value='alloy',
-        text_field='value',
-        value_field='value',
-        option_list=[
-            {'text': 'alloy', 'value': 'alloy'},
-            {'text': 'echo', 'value': 'echo'},
-            {'text': 'fable', 'value': 'fable'},
-            {'text': 'onyx', 'value': 'onyx'},
-            {'text': 'nova', 'value': 'nova'},
-            {'text': 'shimmer', 'value': 'shimmer'},
-        ])
+    voice = choices("Voice", ("alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"), "alloy")
 
 
 class OpenAITTSModelCredential(BaseForm, BaseModelCredential):
-    api_base = forms.TextInputField('API URL', required=True)
+    api_base = forms.TextInputField('API URL', required=True, default_value='https://api.openai.com/v1')
     api_key = forms.PasswordInputField('API Key', required=True)
 
     def is_valid(self, model_type: str, model_name, model_credential: Dict[str, object], model_params, provider,
@@ -64,4 +51,12 @@ class OpenAITTSModelCredential(BaseForm, BaseModelCredential):
         return {**model, 'api_key': super().encryption(model.get('api_key', ''))}
 
     def get_model_params_setting_form(self, model_name):
+        if family(model_name) == "gpt-4o-mini-tts":
+            return InstructedSpeechParams()
         return OpenAITTSModelGeneralParams()
+
+
+class InstructedSpeechParams(BaseForm):
+    voice = choices("Voice", ("marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx",
+                              "sage", "shimmer", "verse"), "marin")
+    instructions = forms.TextInputField("Speaking instructions", required=False)

@@ -1,6 +1,4 @@
 # coding=utf-8
-import base64
-import os
 from typing import Dict
 
 from langchain_core.messages import HumanMessage
@@ -33,7 +31,7 @@ class OpenAIImageModelParams(BaseForm):
 
 
 class OpenAIImageModelCredential(BaseForm, BaseModelCredential):
-    api_base = forms.TextInputField('API URL', required=True)
+    api_base = forms.TextInputField('API URL', required=True, default_value='https://api.openai.com/v1')
     api_key = forms.PasswordInputField('API Key', required=True)
 
     def is_valid(self, model_type: str, model_name, model_credential: Dict[str, object], model_params, provider,
@@ -71,4 +69,5 @@ class OpenAIImageModelCredential(BaseForm, BaseModelCredential):
         return {**model, 'api_key': super().encryption(model.get('api_key', ''))}
 
     def get_model_params_setting_form(self, model_name):
-        return OpenAIImageModelParams()
+        from models_provider.impl.openai_model_provider.profiles import REASONING, ReasoningParams, family
+        return ReasoningParams(model_name) if family(model_name) in REASONING else OpenAIImageModelParams()

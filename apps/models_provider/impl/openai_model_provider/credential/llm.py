@@ -77,3 +77,12 @@ class OpenAILLMModelCredential(BaseForm, BaseModelCredential):
 
     def get_model_params_setting_form(self, model_name):
         return OpenAILLMModelParams()
+
+
+class OfficialOpenAILLMCredential(OpenAILLMModelCredential):
+    api_base = forms.TextInputField('API URL', required=True, default_value='https://api.openai.com/v1')
+    api_key = forms.PasswordInputField('API Key', required=True)
+
+    def get_model_params_setting_form(self, model_name):
+        from models_provider.impl.openai_model_provider.profiles import REASONING, ReasoningParams, family
+        return ReasoningParams(model_name) if family(model_name) in REASONING else OpenAILLMModelParams()

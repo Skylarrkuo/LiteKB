@@ -73,7 +73,7 @@ const listBaseModelParamsForm: (
   model_type: string,
   model_name: string,
   loading?: Ref<boolean>,
-) => Promise<Result<Array<BaseModel>>> = (provider, model_type, model_name, loading) => {
+) => Promise<Result<Array<FormField>>> = (provider, model_type, model_name, loading) => {
   return get(`${prefix_provider}/model_params_form`, {provider, model_type, model_name}, loading)
 }
 export default {

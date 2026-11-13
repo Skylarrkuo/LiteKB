@@ -1,233 +1,103 @@
-# coding=utf-8
-"""
-@project: MaxKB
-@Author：虎
-@file： aliyun_bai_lian_model_provider.py
-@date：2024/9/9 17:43
-@desc:
-"""
+from pathlib import Path
 
-import os
+from django.utils.translation import gettext as _
+from models_provider.base_model_provider import IModelProvider, ModelInfo, ModelInfoManage, ModelProvideInfo, ModelTypeConst
+from .credential.embedding import AliyunBaiLianEmbeddingCredential
+from .credential.image import QwenVLModelCredential
+from .credential.itv import ImageToVideoModelCredential
+from .credential.llm import BaiLianLLMModelCredential
+from .credential.media import MediaCredential
+from .credential.reranker import AliyunBaiLianRerankerCredential
+from .credential.stt import AliyunBaiLianDefaultSTTModelCredential, AliyunBaiLianSTTModelCredential
+from .credential.stt.asr_stt import AliyunBaiLianAsrSTTModelCredential
+from .credential.stt.omni_stt import AliyunBaiLianOmiSTTModelCredential
+from .credential.tti import QwenTextToImageModelCredential
+from .credential.tts import AliyunBaiLianTTSModelCredential
+from .credential.ttv import TextToVideoModelCredential
+from .model.embedding import AliyunBaiLianEmbedding
+from .model.image import QwenVLChatModel
+from .model.llm import BaiLianChatModel
+from .model.reranker import AliyunBaiLianReranker
+from .model.stt import AliyunBaiLianAsrSpeechToText, AliyunBaiLianDefaultSpeechToText, AliyunBaiLianOmiSpeechToText
+from .model.stt import AliyunBaiLianSpeechToText
+from .model.tti import QwenTextToImageModel
+from .model.tts import AliyunBaiLianTextToSpeech
+from .model.ttv import GenerationVideoModel
+from .parameters import DIMENSIONS
 
-from common.utils.common import get_file_content
-from models_provider.base_model_provider import (
-    ModelProvideInfo,
-    ModelTypeConst,
-    ModelInfo,
-    IModelProvider,
-    ModelInfoManage,
-)
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.stt.asr_stt import (
-    AliyunBaiLianAsrSTTModelCredential,
-)
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.embedding import AliyunBaiLianEmbeddingCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.image import QwenVLModelCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.itv import ImageToVideoModelCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.llm import BaiLianLLMModelCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.stt.omni_stt import (
-    AliyunBaiLianOmiSTTModelCredential,
-)
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.reranker import AliyunBaiLianRerankerCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.stt import (
-    AliyunBaiLianSTTModelCredential,
-    AliyunBaiLianDefaultSTTModelCredential,
-)
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.tti import QwenTextToImageModelCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.tts import AliyunBaiLianTTSModelCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.credential.ttv import TextToVideoModelCredential
-from models_provider.impl.aliyun_bai_lian_model_provider.model.stt.asr_stt import AliyunBaiLianAsrSpeechToText
-from models_provider.impl.aliyun_bai_lian_model_provider.model.embedding import AliyunBaiLianEmbedding
-from models_provider.impl.aliyun_bai_lian_model_provider.model.image import QwenVLChatModel
-from models_provider.impl.aliyun_bai_lian_model_provider.model.llm import BaiLianChatModel
-from models_provider.impl.aliyun_bai_lian_model_provider.model.stt.omni_stt import AliyunBaiLianOmiSpeechToText
-from models_provider.impl.aliyun_bai_lian_model_provider.model.reranker import AliyunBaiLianReranker
-from models_provider.impl.aliyun_bai_lian_model_provider.model.stt import (
-    AliyunBaiLianSpeechToText,
-    AliyunBaiLianDefaultSpeechToText,
-)
-from models_provider.impl.aliyun_bai_lian_model_provider.model.tti import QwenTextToImageModel
-from models_provider.impl.aliyun_bai_lian_model_provider.model.tts import AliyunBaiLianTextToSpeech
-from maxkb.conf import PROJECT_DIR
-from django.utils.translation import gettext as _, gettext
 
-from models_provider.impl.aliyun_bai_lian_model_provider.model.ttv import GenerationVideoModel
+DOCS = "https://help.aliyun.com/zh/model-studio/"
+model_info_manage = ModelInfoManage()
 
-aliyun_bai_lian_model_credential = AliyunBaiLianRerankerCredential()
-aliyun_bai_lian_tts_model_credential = AliyunBaiLianTTSModelCredential()
-aliyun_bai_lian_stt_model_credential = AliyunBaiLianSTTModelCredential()
-aliyun_bai_lian_omi_stt_model_credential = AliyunBaiLianOmiSTTModelCredential()
-aliyun_bai_lian_asr_stt_model_credential = AliyunBaiLianAsrSTTModelCredential()
-aliyun_bai_lian_default_stt_model_credential = AliyunBaiLianDefaultSTTModelCredential()
-aliyun_bai_lian_embedding_model_credential = AliyunBaiLianEmbeddingCredential()
-aliyun_bai_lian_llm_model_credential = BaiLianLLMModelCredential()
-qwenvl_model_credential = QwenVLModelCredential()
-qwentti_model_credential = QwenTextToImageModelCredential()
-aliyun_bai_lian_ttv_model_credential = TextToVideoModelCredential()
-aliyun_bai_lian_itv_model_credential = ImageToVideoModelCredential()
 
-model_info_list = [
-    ModelInfo(
-        "gte-rerank-v2",
-        _(
-            "With the GTE-Rerank text sorting series model developed by Alibaba Tongyi Lab, developers can integrate high-quality text retrieval and sorting through the LlamaIndex framework."
-        ),
-        ModelTypeConst.RERANKER,
-        aliyun_bai_lian_model_credential,
-        AliyunBaiLianReranker,
-    ),
-    ModelInfo(
-        "paraformer-realtime-v2",
-        _(
-            "Chinese (including various dialects such as Cantonese), English, Japanese, and Korean support free switching between multiple languages."
-        ),
-        ModelTypeConst.STT,
-        aliyun_bai_lian_stt_model_credential,
-        AliyunBaiLianSpeechToText,
-    ),
-    ModelInfo(
-        "cosyvoice-v1",
-        _(
-            "CosyVoice is based on a new generation of large generative speech models, which can predict emotions, intonation, rhythm, etc. based on context, and has better anthropomorphic effects."
-        ),
-        ModelTypeConst.TTS,
-        aliyun_bai_lian_tts_model_credential,
-        AliyunBaiLianTextToSpeech,
-    ),
-    ModelInfo(
-        "text-embedding-v1",
-        _(
-            "Universal text vector is Tongyi Lab's multi-language text unified vector model based on the LLM base. It provides high-level vector services for multiple mainstream languages around the world and helps developers quickly convert text data into high-quality vector data."
-        ),
-        ModelTypeConst.EMBEDDING,
-        aliyun_bai_lian_embedding_model_credential,
-        AliyunBaiLianEmbedding,
-    ),
-    ModelInfo(
-        "qwen3.7-plus",
-        _(""),
-        ModelTypeConst.LLM,
-        aliyun_bai_lian_llm_model_credential,
-        BaiLianChatModel,
-    ),
-    ModelInfo(
-        "qwen3.6-plus",
-        _(""),
-        ModelTypeConst.LLM,
-        aliyun_bai_lian_llm_model_credential,
-        BaiLianChatModel,
-    ),
-    ModelInfo(
-        "qwen3.6-flash",
-        _(""),
-        ModelTypeConst.LLM,
-        aliyun_bai_lian_llm_model_credential,
-        BaiLianChatModel,
-    ),
-    ModelInfo(
-        "qwen3.6-max-preview",
-        _(""),
-        ModelTypeConst.LLM,
-        aliyun_bai_lian_llm_model_credential,
-        BaiLianChatModel,
-    ),
-    ModelInfo(
-        "qwen3.5-plus",
-        _(""),
-        ModelTypeConst.LLM,
-        aliyun_bai_lian_llm_model_credential,
-        BaiLianChatModel,
-    ),
-    ModelInfo(
-        "qwen3.5-flash",
-        _(""),
-        ModelTypeConst.LLM,
-        aliyun_bai_lian_llm_model_credential,
-        BaiLianChatModel,
-    ),
-    ModelInfo(
-        "qwen-omni-turbo",
-        _(
-            "The Qwen Omni series model supports inputting multiple modalities of data, including video, audio, images, and text, and outputting audio and text."
-        ),
-        ModelTypeConst.STT,
-        aliyun_bai_lian_omi_stt_model_credential,
-        AliyunBaiLianOmiSpeechToText,
-    ),
-    ModelInfo(
-        "qwen2.5-omni-7b",
-        _(
-            "The Qwen Omni series model supports inputting multiple modalities of data, including video, audio, images, and text, and outputting audio and text."
-        ),
-        ModelTypeConst.STT,
-        aliyun_bai_lian_omi_stt_model_credential,
-        AliyunBaiLianOmiSpeechToText,
-    ),
-    ModelInfo(
-        "qwen-audio-asr",
-        _(
-            "The Qwen Audio based end-to-end speech recognition model supports audio recognition within 3 minutes. At present, it mainly supports Chinese and English recognition."
-        ),
-        ModelTypeConst.STT,
-        aliyun_bai_lian_asr_stt_model_credential,
-        AliyunBaiLianAsrSpeechToText,
-    ),
-]
+def register(names, kind, credential, model_class, description, page):
+    for name in names:
+        info = ModelInfo(name, description, kind, credential, model_class, docs_url=DOCS + page)
+        model_info_manage.append_model_info(info)
+        if kind.name not in model_info_manage.default_model_dict:
+            model_info_manage.append_default_model_info(info)
 
-module_info_vl_list = [
-    ModelInfo("qwen-vl-max", "", ModelTypeConst.IMAGE, qwenvl_model_credential, QwenVLChatModel),
-    ModelInfo("qwen-vl-max-0809", "", ModelTypeConst.IMAGE, qwenvl_model_credential, QwenVLChatModel),
-    ModelInfo("qwen-vl-plus-0809", "", ModelTypeConst.IMAGE, qwenvl_model_credential, QwenVLChatModel),
-]
-module_info_tti_list = [
-    ModelInfo(
-        "wanx-v1",
-        _(
-            "Tongyi Wanxiang - a large image model for text generation, supports bilingual input in Chinese and English, and supports the input of reference pictures for reference content or reference style migration. Key styles include but are not limited to watercolor, oil painting, Chinese painting, sketch, flat illustration, two-dimensional, and 3D. Cartoon."
-        ),
-        ModelTypeConst.TTI,
-        qwentti_model_credential,
-        QwenTextToImageModel,
-    ),
-]
-model_info_ttv_list = [
-    ModelInfo("wan2.2-t2v-plus", "", ModelTypeConst.TTV, aliyun_bai_lian_ttv_model_credential, GenerationVideoModel),
-    ModelInfo("wanx2.1-t2v-turbo", "", ModelTypeConst.TTV, aliyun_bai_lian_ttv_model_credential, GenerationVideoModel),
-    ModelInfo("wanx2.1-t2v-plus", "", ModelTypeConst.TTV, aliyun_bai_lian_ttv_model_credential, GenerationVideoModel),
-]
-module_info_itv_list = [
-    ModelInfo("wan2.2-i2v-flash", "", ModelTypeConst.ITV, aliyun_bai_lian_itv_model_credential, GenerationVideoModel),
-    ModelInfo("wan2.2-i2v-plus", "", ModelTypeConst.ITV, aliyun_bai_lian_itv_model_credential, GenerationVideoModel),
-    ModelInfo("wanx2.1-i2v-plus", "", ModelTypeConst.ITV, aliyun_bai_lian_itv_model_credential, GenerationVideoModel),
-    ModelInfo("wanx2.1-i2v-turbo", "", ModelTypeConst.ITV, aliyun_bai_lian_itv_model_credential, GenerationVideoModel),
-]
 
-model_info_manage = (
-    ModelInfoManage.builder()
-    .append_model_info_list(model_info_list)
-    .append_model_info_list(module_info_vl_list)
-    .append_default_model_info(module_info_vl_list[0])
-    .append_model_info_list(module_info_tti_list)
-    .append_default_model_info(module_info_tti_list[0])
-    .append_default_model_info(model_info_list[1])
-    .append_default_model_info(model_info_list[2])
-    .append_default_model_info(
-        ModelInfo(
-            "default",
-            _("default"),
-            ModelTypeConst.STT,
-            aliyun_bai_lian_default_stt_model_credential,
-            AliyunBaiLianDefaultSpeechToText,
-        )
-    )
-    .append_default_model_info(model_info_list[3])
-    .append_default_model_info(model_info_list[4])
-    .append_default_model_info(model_info_list[0])
-    .append_model_info_list(model_info_ttv_list)
-    .append_default_model_info(model_info_ttv_list[0])
-    .append_model_info_list(module_info_itv_list)
-    .append_default_model_info(module_info_itv_list[0])
-    .build()
-)
+modern_chat = ("qwen3.8-max", "qwen3.7-plus", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-flash",
+               "qwen3.6-plus", "qwen3.6-flash", "qwen3.5-plus", "qwen3.5-flash")
+register((*modern_chat, "qwen3.6-max-preview", "qwen-plus", "qwen-flash", "qwen-max", "qwen-turbo"),
+         ModelTypeConst.LLM, BaiLianLLMModelCredential(), BaiLianChatModel,
+         "对话生成、流式输出和工具调用。思考模式按具体型号提供。", "qwen-api-via-openai-chat-completions")
+register((*modern_chat, "qwen3-vl-plus", "qwen3-vl-flash", "qwen-vl-max", "qwen-vl-plus",
+          "qwen-vl-max-0809", "qwen-vl-plus-0809"), ModelTypeConst.IMAGE, QwenVLModelCredential(), QwenVLChatModel,
+         "输入图像和文字，返回文本描述或问题答案。", "vision-model/")
+register(("text-embedding-v4", *[n for n in DIMENSIONS if n != "text-embedding-v4"]), ModelTypeConst.EMBEDDING,
+         AliyunBaiLianEmbeddingCredential(), AliyunBaiLianEmbedding,
+         "用于知识库索引和检索的文本向量，支持的输出维度与每批上限按型号设置。", "embedding")
+register(("qwen3.7-text-rerank", "qwen3-rerank", "gte-rerank-v2", "qwen3-vl-rerank"), ModelTypeConst.RERANKER,
+         AliyunBaiLianRerankerCredential(), AliyunBaiLianReranker,
+         "对查询与候选段落重新排序，保留来源元数据；在 LiteKB 中输入为文本。", "text-rerank-api")
+
+register(("qwen-image-3.0-pro", "qwen-image-3.0"), ModelTypeConst.TTI, MediaCredential("TTI"), QwenTextToImageModel,
+         "千问图像 3.0 文生图，返回生成图片地址。", "qwen-image-generation-and-editing-api-reference")
+register(("qwen-image-2.0-pro", "qwen-image-2.0"), ModelTypeConst.TTI, MediaCredential("TTI"), QwenTextToImageModel,
+         "千问图像 2.0 文生图，支持多图、分辨率和随机种子。", "qwen-image-api")
+register(("wanx-v1",), ModelTypeConst.TTI, QwenTextToImageModelCredential(), QwenTextToImageModel,
+         "万相经典文生图，使用异步图像合成接口。", "text-to-image")
+for kind in (ModelTypeConst.TTV, ModelTypeConst.ITV):
+    register(("wan3.0-video", "wan3.0-video-prime"), kind, MediaCredential(kind.name), GenerationVideoModel,
+             "万相 3.0 异步视频生成，按节点输入使用文本或首尾帧。", "wan3-video-generation-api-reference")
+register(("wan2.7-t2v",), ModelTypeConst.TTV, MediaCredential("TTV"), GenerationVideoModel,
+         "以文本生成视频，可选分辨率、宽高比和时长。", "text-to-video-api-reference")
+register(("wan2.7-i2v",), ModelTypeConst.ITV, MediaCredential("ITV"), GenerationVideoModel,
+         "以首帧或首尾帧生成视频，返回 MP4 地址。", "image-to-video-general-api-reference")
+register(("wan2.2-t2v-plus", "wanx2.1-t2v-turbo", "wanx2.1-t2v-plus"), ModelTypeConst.TTV,
+         TextToVideoModelCredential(), GenerationVideoModel, "万相文生视频，使用像素尺寸参数。", "text-to-video-guide")
+register(("wan2.2-i2v-flash", "wan2.2-i2v-plus", "wanx2.1-i2v-plus", "wanx2.1-i2v-turbo"), ModelTypeConst.ITV,
+         ImageToVideoModelCredential(), GenerationVideoModel, "万相图生视频，首帧使用 img_url。", "wan-image-to-video-guide")
+
+register(("qwen-audio-3.1-asr-flash", "qwen-audio-3.0-asr-flash"), ModelTypeConst.STT,
+         MediaCredential("STT"), AliyunBaiLianAsrSpeechToText, "音频文件转写，返回完整文本。", "qwen-audio-asr-http-api")
+register(("qwen3-asr-flash",), ModelTypeConst.STT, MediaCredential("STT"), AliyunBaiLianAsrSpeechToText,
+         "短音频同步转写。", "qwen-asr-api-reference")
+register(("qwen-audio-asr",), ModelTypeConst.STT, AliyunBaiLianAsrSTTModelCredential(), AliyunBaiLianAsrSpeechToText,
+         "千问音频模型录音转写。", "audio-language-model")
+register(("qwen-omni-turbo", "qwen2.5-omni-7b"), ModelTypeConst.STT, AliyunBaiLianOmiSTTModelCredential(),
+         AliyunBaiLianOmiSpeechToText, "使用 Omni 音频输入、流式文本输出执行转写。", "qwen-omni")
+register(("paraformer-realtime-v2",), ModelTypeConst.STT, AliyunBaiLianSTTModelCredential(), AliyunBaiLianSpeechToText,
+         "通过可选 DashScope SDK 识别音频。", "asr-model")
+register(("qwen-audio-3.0-tts-flash", "qwen-audio-3.0-tts-plus", "qwen-audio-3.1-tts-flash", "qwen-audio-3.1-tts-plus"),
+         ModelTypeConst.TTS, MediaCredential("TTS"), AliyunBaiLianTextToSpeech,
+         "非实时语音合成，使用音色 ID 与采样率生成音频。", "qwen-audio-tts-http-api")
+register(("qwen3-tts-flash", "qwen3-tts-instruct-flash"), ModelTypeConst.TTS, MediaCredential("TTS"),
+         AliyunBaiLianTextToSpeech, "使用千问系统音色合成语音。", "tts-model/")
+register(("cosyvoice-v1",), ModelTypeConst.TTS, AliyunBaiLianTTSModelCredential(), AliyunBaiLianTextToSpeech,
+         "CosyVoice 实时语音合成协议。", "cosyvoice-websocket-api/")
+
+# Keep custom STT model credential routing and legacy, family-specific image/video forms.
+for kind, credential, cls in (
+    (ModelTypeConst.STT, AliyunBaiLianDefaultSTTModelCredential(), AliyunBaiLianDefaultSpeechToText),
+    (ModelTypeConst.TTI, QwenTextToImageModelCredential(), QwenTextToImageModel),
+    (ModelTypeConst.TTV, TextToVideoModelCredential(), GenerationVideoModel),
+    (ModelTypeConst.ITV, ImageToVideoModelCredential(), GenerationVideoModel),
+    (ModelTypeConst.TTS, AliyunBaiLianTTSModelCredential(), AliyunBaiLianTextToSpeech),
+):
+    model_info_manage.append_default_model_info(ModelInfo("default", "", kind, credential, cls))
 
 
 class AliyunBaiLianModelProvider(IModelProvider):
@@ -235,18 +105,5 @@ class AliyunBaiLianModelProvider(IModelProvider):
         return model_info_manage
 
     def get_model_provide_info(self):
-        return ModelProvideInfo(
-            provider="aliyun_bai_lian_model_provider",
-            name=gettext("Alibaba Cloud Bailian"),
-            icon=get_file_content(
-                os.path.join(
-                    PROJECT_DIR,
-                    "apps",
-                    "models_provider",
-                    "impl",
-                    "aliyun_bai_lian_model_provider",
-                    "icon",
-                    "aliyun_bai_lian_icon_svg",
-                )
-            ),
-        )
+        return ModelProvideInfo(provider="aliyun_bai_lian_model_provider", name=_("Alibaba Cloud Bailian"),
+                                icon=(Path(__file__).parent / "icon" / "aliyun_bai_lian_icon_svg").read_text("utf-8"))

@@ -1,14 +1,13 @@
-from typing import Dict
-
-import dashscope
-
-from django.utils.translation import gettext as _
+import json
+from contextlib import closing
+from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 from common.utils.common import _remove_empty_lines
-from common.utils.provider_request import provider_request
 from models_provider.base_model_provider import MaxKBBaseModel
 from models_provider.impl.base_tts import BaseTextToSpeech
 from oss.url_fetch import fetch_public_bytes
+from ..transport import check_catalog, endpoint, request
 
 
 class AliyunBaiLianTextToSpeech(MaxKBBaseModel, BaseTextToSpeech):
@@ -17,78 +16,66 @@ class AliyunBaiLianTextToSpeech(MaxKBBaseModel, BaseTextToSpeech):
     model: str
     params: dict
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.api_key = kwargs.get('api_key')
-        self.base_url = kwargs.get('base_url')
-        self.model = kwargs.get('model')
-        self.params = kwargs.get('params')
-
     @staticmethod
     def is_cache_model():
         return False
 
-    @staticmethod
-    def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
-        optional_params = {'params': {}}
-        for key, value in model_kwargs.items():
-            if key not in ['model_id', 'use_local', 'streaming']:
-                optional_params['params'][key] = value
-
-        return AliyunBaiLianTextToSpeech(
-            model=model_name,
-            api_key=model_credential.get('api_key'),
-            base_url=model_credential.get('api_base', "https://dashscope.aliyuncs.com/api/v1"),
-            **optional_params,
-        )
+    @classmethod
+    def new_instance(cls, model_type, model_name, model_credential, **model_kwargs):
+        return cls(model=model_name, api_key=model_credential["api_key"], base_url=endpoint(model_credential.get("api_base")),
+                   params={k: v for k, v in cls.filter_optional_params(model_kwargs).items() if v is not None and v != ""})
 
     def check_auth(self):
-        self.text_to_speech(_('Hello'))
+        check_catalog(self.base_url, self.api_key, self.model)
+        return True
 
     def text_to_speech(self, text):
-        global audio
-        dashscope.api_key = self.api_key
-        dashscope.base_http_api_url = self.base_url
         text = _remove_empty_lines(text)
-        if 'sambert' in self.model:
+        params = dict(self.params)
+        if self.model.startswith(("qwen-audio-", "cosyvoice-v3")):
+            output = request(self.base_url, self.api_key, "services/audio/tts/SpeechSynthesizer",
+                             {"model": self.model, "input": {"text": text, **params}})
+        elif self.model.startswith("qwen"):
+            params.pop("speech_rate", None)  # Old forms exposed this unsupported parameter for Qwen3-TTS.
+            output = request(self.base_url, self.api_key, "services/aigc/multimodal-generation/generation",
+                             {"model": self.model, "input": {"text": text, **params}})
+        elif "MiniMax" in self.model:
+            output = request(self.base_url, self.api_key, "services/aigc/multimodal-generation/generation",
+                             {"model": self.model, "input": {"text": text, **params}})
+            return bytes.fromhex(output["data"]["audio"])
+        elif "sambert" in self.model:
             from dashscope.audio.tts import SpeechSynthesizer
-            audio = SpeechSynthesizer.call(model=self.model, text=text, **self.params).get_audio_data()
-        elif 'qwen' in self.model:
-            response = dashscope.MultiModalConversation.call(
-                # 如需使用指令控制功能，请将model替换为qwen3-tts-instruct-flash
-                model=self.model,
-                api_key=self.api_key,
-                text=text,
-                **self.params
-            )
-            # 这个的接口返回格式和上面两个不太一样，直接返回了一个url地址，下载后就是音频文件
-            audio_url = response.output.audio.url
-            audio = fetch_public_bytes(audio_url)
-        elif 'MiniMax' in self.model:
-            api_url = f"{self.base_url}/services/aigc/multimodal-generation/generation"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": self.model,
-                "input": {
-                    "text": text,
-                    **self.params
-                }
-            }
-            response = provider_request("POST", api_url, headers=headers, json=payload)
-            audio_hex = response.json().get("output", {}).get("data", {}).get("audio")
-            if audio_hex:
-                audio = bytes.fromhex(audio_hex)
-            else:
-                raise Exception("Failed to get audio data from response")
+            return SpeechSynthesizer.call(model=self.model, text=text, api_key=self.api_key, **params).get_audio_data()
         else:
-            from dashscope.audio.tts_v2 import SpeechSynthesizer
-            synthesizer = SpeechSynthesizer(model=self.model, **self.params)
-            audio = synthesizer.call(text)
-        if audio is None:
-            raise Exception('Failed to generate audio')
-        if type(audio) == str:
-            raise Exception(audio)
-        return audio
+            return self._cosyvoice_audio(text)
+        return fetch_public_bytes(output["audio"]["url"])
+
+    def _cosyvoice_audio(self, text):
+        from websocket import create_connection
+
+        parts = urlsplit(self.base_url)
+        url = urlunsplit(("wss" if parts.scheme == "https" else "ws", parts.netloc,
+                          parts.path.removesuffix("/api/v1") + "/api-ws/v1/inference", "", ""))
+        task = uuid4().hex
+        with closing(create_connection(url, header={"Authorization": "Bearer " + self.api_key}, timeout=60,
+                                       redirect_limit=0)) as socket:
+            def send(action, payload):
+                socket.send(json.dumps({"header": {"action": action, "task_id": task, "streaming": "duplex"},
+                                        "payload": payload}, ensure_ascii=False))
+            send("run-task", {"task_group": "audio", "task": "tts", "function": "SpeechSynthesizer",
+                              "model": self.model, "parameters": {"format": "mp3", "voice": "longxiaochun",
+                                                                  **self.params}, "input": {}})
+            audio = bytearray()
+            while True:
+                frame = socket.recv()
+                if isinstance(frame, bytes):
+                    audio.extend(frame)
+                    continue
+                event = json.loads(frame)["header"]["event"]
+                if event == "task-started":
+                    send("continue-task", {"input": {"text": text}})
+                    send("finish-task", {"input": {}})
+                elif event == "task-finished":
+                    return bytes(audio)
+                elif event == "task-failed":
+                    raise ValueError("DashScope speech synthesis task failed")

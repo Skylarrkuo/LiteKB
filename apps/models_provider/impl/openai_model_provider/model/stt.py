@@ -1,17 +1,10 @@
-import asyncio
-import io
-from typing import Dict
+from pathlib import Path
 
 from openai import OpenAI
 
-from common.config.tokenizer_manage_config import TokenizerManage
 from models_provider.base_model_provider import MaxKBBaseModel
 from models_provider.impl.base_stt import BaseSpeechToText
-
-
-def custom_get_token_ids(text: str):
-    tokenizer = TokenizerManage.get_tokenizer()
-    return tokenizer.encode(text)
+from ..profiles import family
 
 
 class OpenAISpeechToText(MaxKBBaseModel, BaseSpeechToText):
@@ -24,52 +17,36 @@ class OpenAISpeechToText(MaxKBBaseModel, BaseSpeechToText):
     def is_cache_model():
         return False
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.api_key = kwargs.get('api_key')
-        self.api_base = kwargs.get('api_base')
-        self.model = kwargs.get('model')
-        self.params = kwargs.get('params')
-
     @staticmethod
-    def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
-        optional_params = {}
-        if 'max_tokens' in model_kwargs and model_kwargs['max_tokens'] is not None:
-            optional_params['max_tokens'] = model_kwargs['max_tokens']
-        if 'temperature' in model_kwargs and model_kwargs['temperature'] is not None:
-            optional_params['temperature'] = model_kwargs['temperature']
-        return OpenAISpeechToText(
-            model=model_name,
-            api_base=model_credential.get('api_base'),
-            api_key=model_credential.get('api_key'),
-            params = model_kwargs,
-            **optional_params,
-        )
+    def new_instance(model_type, model_name, model_credential, **model_kwargs):
+        options = MaxKBBaseModel.filter_optional_params(model_kwargs)
+        return OpenAISpeechToText(api_base=model_credential["api_base"], api_key=model_credential["api_key"],
+                                  model=model_name, params=options)
 
     def check_auth(self):
-        client = OpenAI(
-            base_url=self.api_base,
-            api_key=self.api_key
-        )
-        response_list = client.models.with_raw_response.list()
-        # print(response_list)
+        with OpenAI(api_key=self.api_key, base_url=self.api_base) as client:
+            client.models.retrieve(self.model)
 
     def speech_to_text(self, audio_file):
-        client = OpenAI(
-            base_url=self.api_base,
-            api_key=self.api_key
-        )
-        audio_data = audio_file.read()
-        buffer = io.BytesIO(audio_data)
-        buffer.name = "file.mp3"  # this is the important line
-
-        filter_params = {k: v for k,v in self.params.items() if k not in {'model_id','use_local','streaming'}}
-        transcription_params = {
-            'model': self.model,
-            'file': buffer,
-            'language': 'zh'
-        }
-
-        res = client.audio.transcriptions.create(**transcription_params,extra_body=filter_params)
-        return res.text
+        name = Path(getattr(audio_file, "name", None) or "audio.mp3").name
+        options = {k: v for k, v in self.params.items() if k in ("language", "prompt", "temperature") and v is not None and v != ""}
+        extra = {}
+        if family(self.model) == "gpt-transcribe":
+            if "languages" not in self.params and options.get("language"):
+                extra["languages"] = [options["language"]]
+            options.pop("language", None)
+            for key in ("languages", "keywords"):
+                value = self.params.get(key)
+                if value:
+                    extra[key] = [part.strip() for part in value.split(",") if part.strip()] if isinstance(value, str) else value
+            if any(any(char in term for char in "<>\r\n") for term in extra.get("keywords", [])):
+                raise ValueError("Transcription keywords must be single-line terms without < or >")
+        elif family(self.model) == "gpt-4o-transcribe-diarize":
+            options.pop("prompt", None)
+            options["chunking_strategy"] = "auto"
+            options["response_format"] = "diarized_json"
+        with OpenAI(api_key=self.api_key, base_url=self.api_base) as client:
+            result = client.audio.transcriptions.create(model=self.model, file=(name, audio_file.read()),
+                                                        extra_body=extra or None, **options)
+        return result.text
 

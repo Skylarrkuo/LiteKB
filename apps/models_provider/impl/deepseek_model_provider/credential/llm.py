@@ -19,20 +19,26 @@ from common.utils.logger import maxkb_logger
 
 
 class DeepSeekLLMModelParams(BaseForm):
-    temperature = forms.SliderField(TooltipLabel(_('Temperature'),
-                                                 _('Higher values make the output more random, while lower values make it more focused and deterministic')),
-                                    required=True, default_value=0.7,
-                                    _min=0.1,
-                                    _max=1.0,
-                                    _step=0.01,
-                                    precision=2)
+    thinking_mode = forms.SingleSelect("Thinking", "value", "value",
+                                       [{"value": v} for v in ("enabled", "disabled")], default_value="enabled")
+    reasoning_effort = forms.SingleSelect("Reasoning effort", "value", "value",
+                                          [{"value": v} for v in ("low", "high", "max")], default_value="high",
+                                          relation_show_field_dict={"thinking_mode": ["enabled"]})
+    temperature = forms.SliderField(_("Temperature"), 0, 2, 0.01, 2, default_value=1,
+                                    relation_show_field_dict={"thinking_mode": ["disabled"]})
+    top_p = None
+
+    def __init__(self, model_name):
+        flash = model_name.startswith(("deepseek-flash", "deepseek-v4-flash"))
+        self.top_p = forms.SliderField("Top P", 0.95 if flash else 0, 1, 0.01, 2, default_value=1,
+                                       relation_show_field_dict={"thinking_mode": ["enabled" if flash else "disabled"]})
 
     max_tokens = forms.SliderField(
         TooltipLabel(_('Output the maximum Tokens'),
                      _('Specify the maximum number of tokens that the model can generate')),
         required=True, default_value=8192,
         _min=1,
-        _max=100000,
+        _max=393216,
         _step=1,
         precision=0)
 
@@ -76,4 +82,4 @@ class DeepSeekLLMModelCredential(BaseForm, BaseModelCredential):
     api_key = forms.PasswordInputField('API Key', required=True)
 
     def get_model_params_setting_form(self, model_name):
-        return DeepSeekLLMModelParams()
+        return DeepSeekLLMModelParams(model_name)

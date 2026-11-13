@@ -15,12 +15,14 @@ from common.exception.app_exception import AppApiException
 from common.utils.common import get_file_content
 from common.utils.rsa_util import rsa_long_decrypt, rsa_long_encrypt
 from django.core.cache import cache
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from maxkb.conf import PROJECT_DIR
 from models_provider.base_model_provider import DownModelChunkStatus, ValidCode
-from models_provider.constants.model_provider_constants import ModelProvideConstants
+from models_provider.constants.model_provider_constants import PROVIDERS, get_provider
+from maxkb.capabilities import model_type_enabled
 from models_provider.models import Model, Status
 from models_provider.tools import get_model_credential
 from rest_framework import serializers
@@ -35,7 +37,12 @@ def get_default_model_params_setting(provider, model_type, model_name):
     credential = get_model_credential(provider, model_type, model_name)
     setting_form = credential.get_model_params_setting_form(model_name)
     if setting_form is not None:
-        return setting_form.to_form_list()
+        fields = setting_form.to_form_list()
+        # Provider-defined field labels can also be plain protocol terminology.
+        for field in fields:
+            if isinstance(field.get("label"), str):
+                field["label"] = _(field["label"])
+        return fields
     return []
 
 
@@ -72,7 +79,7 @@ class ModelPullManage:
     @staticmethod
     def pull(model: Model, credential: Dict):
         try:
-            response = ModelProvideConstants[model.provider].value.down_model(
+            response = get_provider(model.provider).down_model(
                 model.model_type, model.model_name, credential
             )
             down_model_chunk = {}
@@ -107,7 +114,10 @@ class ModelPullManage:
 class ModelSerializer(serializers.Serializer):
     @staticmethod
     def model_to_dict(model: Model):
-        credential = json.loads(rsa_long_decrypt(model.credential))
+        credential = {}
+        if model.provider in PROVIDERS and model_type_enabled(model.model_type):
+            model_credential = get_provider(model.provider).get_model_credential(model.model_type, model.model_name)
+            credential = model_credential.encryption_dict(json.loads(rsa_long_decrypt(model.credential)))
         return {
             "id": str(model.id),
             "provider": model.provider,
@@ -116,9 +126,7 @@ class ModelSerializer(serializers.Serializer):
             "model_name": model.model_name,
             "status": model.status,
             "meta": model.meta,
-            "credential": ModelProvideConstants[model.provider]
-            .value.get_model_credential(model.model_type, model.model_name)
-            .encryption_dict(credential),
+            "credential": credential,
             "workspace_id": model.workspace_id,
             "nick_name": model.user.nick_name if model.user else "",
             "username": model.user.username if model.user else "",
@@ -274,8 +282,8 @@ class ModelSerializer(serializers.Serializer):
             model_type = self.data.get("model_type")
             model_name = self.data.get("model_name")
             credential = self.data.get("credential")
-            provider_handler = ModelProvideConstants[provider].value
-            model_credential = ModelProvideConstants[provider].value.get_model_credential(model_type, model_name)
+            provider_handler = get_provider(provider)
+            model_credential = get_provider(provider).get_model_credential(model_type, model_name)
             source_model_credential = json.loads(rsa_long_decrypt(model.credential))
             source_encryption_model_credential = model_credential.encryption_dict(source_model_credential)
             if credential is not None:
@@ -294,6 +302,19 @@ class ModelSerializer(serializers.Serializer):
         credential = serializers.DictField(required=True, label=_("certification information"))
         workspace_id = serializers.CharField(required=False, label=_("workspace id"), max_length=128)
 
+        def validate(self, attrs):
+            provider, model_type, name = attrs["provider"], attrs["model_type"], attrs["model_name"]
+            credential = get_model_credential(provider, model_type, name)
+            defaults = {field["field"]: field["default_value"] for field in credential.to_form_list()
+                        if field.get("default_value") is not None}
+            attrs["credential"] = {**defaults, **attrs["credential"]}
+            if "model_params_form" not in self.initial_data:
+                # A form from the browser is already JSON. Resolve the translated
+                # labels in a server-side preset before persisting the same schema.
+                schema = get_default_model_params_setting(provider, model_type, name)
+                attrs["model_params_form"] = json.loads(json.dumps(schema, cls=DjangoJSONEncoder))
+            return attrs
+
         def is_valid(self, *, raise_exception=False):
             super().is_valid(raise_exception=True)
             if (
@@ -305,7 +326,7 @@ class ModelSerializer(serializers.Serializer):
                     500, _("base model【{model_name}】already exists").format(model_name=self.data.get("name"))
                 )
             default_params = {item["field"]: item["default_value"] for item in self.data.get("model_params_form")}
-            ModelProvideConstants[self.data.get("provider")].value.is_valid_credential(
+            get_provider(self.data.get("provider")).is_valid_credential(
                 self.data.get("model_type"),
                 self.data.get("model_name"),
                 self.data.get("credential"),

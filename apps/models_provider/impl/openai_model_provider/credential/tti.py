@@ -8,6 +8,7 @@ from common.exception.app_exception import AppApiException
 from common.forms import BaseForm, TooltipLabel
 from models_provider.base_model_provider import BaseModelCredential, ValidCode
 from common.utils.logger import maxkb_logger
+from models_provider.impl.openai_model_provider.profiles import IMAGE_MODELS, choices, family
 
 class OpenAITTIModelParams(BaseForm):
     size = forms.SingleSelect(
@@ -49,7 +50,7 @@ By default, images are produced in standard quality, but with DALL·E 3 you can 
 
 
 class OpenAITextToImageModelCredential(BaseForm, BaseModelCredential):
-    api_base = forms.TextInputField('API URL', required=True)
+    api_base = forms.TextInputField('API URL', required=True, default_value='https://api.openai.com/v1')
     api_key = forms.PasswordInputField('API Key', required=True)
 
     def is_valid(self, model_type: str, model_name, model_credential: Dict[str, object], model_params, provider,
@@ -67,7 +68,7 @@ class OpenAITextToImageModelCredential(BaseForm, BaseModelCredential):
                     return False
         try:
             model = provider.get_model(model_type, model_name, model_credential, **model_params)
-            res = model.check_auth()
+            model.check_auth()
         except Exception as e:
             maxkb_logger.error(f'Exception: {e}', exc_info=True)
             if isinstance(e, AppApiException):
@@ -85,4 +86,25 @@ class OpenAITextToImageModelCredential(BaseForm, BaseModelCredential):
         return {**model, 'api_key': super().encryption(model.get('api_key', ''))}
 
     def get_model_params_setting_form(self, model_name):
-        return OpenAITTIModelParams()
+        model = family(model_name)
+        if model in IMAGE_MODELS:
+            return GPTImageParams(model)
+        form = OpenAITTIModelParams()
+        if model == "dall-e-3":
+            form.n = choices("Number of images", (1,), 1)
+        return form
+
+
+class GPTImageParams(BaseForm):
+    size = choices("Image size", ("auto", "1024x1024", "1536x1024", "1024x1536"), "1024x1024")
+    quality = None
+    complexity = None
+    n = forms.SliderField("Number of images", required=True, default_value=1, _min=1, _max=10, _step=1, precision=0)
+
+    def __init__(self, model):
+        levels = ("auto", "low", "medium", "high")
+        if model.startswith(("gpt-image-2.5-", "gpt-image-2.6-")):
+            levels += ("xhigh", "max")
+        if model.startswith("gpt-image-2.6-"):
+            self.complexity = choices("Complexity", ("low", "medium", "high"), "high")
+        self.quality = choices("Image quality", levels, "auto")

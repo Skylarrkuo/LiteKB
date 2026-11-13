@@ -11,13 +11,17 @@ from common.utils.logger import maxkb_logger
 
 class OpenAISTTModelParams(BaseForm):
     language = forms.TextInputField(
-        TooltipLabel(_('language'), _('If not passed, the default value is zh')),
-        required=True,
-        default_value='zh',
+        TooltipLabel(_('language'), _('Optional ISO 639-1 language code')),
+        required=False,
     )
 
+class TranscribeParams(BaseForm):
+    languages = forms.TextInputField("Language hints (comma-separated ISO 639-1 codes)", required=False)
+    keywords = forms.TextInputField("Keyword hints (comma-separated)", required=False)
+    prompt = forms.TextInputField("Transcription context", required=False)
+
 class OpenAISTTModelCredential(BaseForm, BaseModelCredential):
-    api_base = forms.TextInputField('API URL', required=True)
+    api_base = forms.TextInputField('API URL', required=True, default_value='https://api.openai.com/v1')
     api_key = forms.PasswordInputField('API Key', required=True)
 
     def is_valid(self, model_type: str, model_name, model_credential: Dict[str, object], model_params, provider,
@@ -53,4 +57,5 @@ class OpenAISTTModelCredential(BaseForm, BaseModelCredential):
 
     def get_model_params_setting_form(self, model_name):
 
-        return OpenAISTTModelParams()
+        from models_provider.impl.openai_model_provider.profiles import family
+        return TranscribeParams() if family(model_name) == "gpt-transcribe" else OpenAISTTModelParams()

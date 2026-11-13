@@ -1,11 +1,14 @@
 <template>
-  <card-box :title="model.name" shadow="hover" class="model-card">
+  <card-box :title="model.name" shadow="hover" class="model-card" always-show-actions>
     <template #icon>
-      <span style="height: 32px; width: 32px" :innerHTML="icon"></span>
+      <span class="model-mark" aria-hidden="true">
+        <span v-if="icon" :innerHTML="icon" />
+        <el-icon v-else><Cpu /></el-icon>
+      </span>
     </template>
     <template #title>
       <div class="flex">
-        <span class="ellipsis-1" :title="model.name" style="max-width: 80%">
+        <span class="model-title ellipsis-1" :title="model.name">
           {{ model.name }}
         </span>
         <span v-if="currentModel.status === 'ERROR'">
@@ -70,7 +73,7 @@
 
     <template #mouseEnter v-if="MoreFilledPermission(model.id)">
       <el-dropdown trigger="click" v-if="!isShared">
-        <el-button text @click.stop>
+        <el-button text @click.stop :aria-label="$t('studio.actions') + ' · ' + model.name">
           <AppIcon iconName="app-more" class="color-secondary"></AppIcon>
         </el-button>
         <template #dropdown>
@@ -321,8 +324,13 @@ onBeforeUnmount(() => {
 </script>
 <style lang="scss" scoped>
 .model-card {
-  min-height: 135px;
+  min-height: 168px;
   min-width: auto;
+  .model-mark { display: grid; place-items: center; width: 40px; height: 40px; background: #f0f5f2; border-radius: 12px; color: var(--studio-ink); }
+  .model-mark > span, .model-mark :deep(svg), .model-mark :deep(img) { display: block; width: 26px; height: 26px; object-fit: contain; }
+  .model-title { font-size: 16px; font-weight: 600; max-width: 86%; letter-spacing: -.025em; }
+  ul { padding-top: 10px; border-top: 1px solid var(--el-border-color-lighter); }
+  :deep(.card-footer) { bottom: 8px; }
 
   .operation-button {
     position: absolute;

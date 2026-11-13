@@ -1,13 +1,11 @@
 import base64
-import os
-import traceback
-from typing import Dict
+from pathlib import Path
 
 from openai import OpenAI
 
-from common.utils.logger import maxkb_logger
 from models_provider.base_model_provider import MaxKBBaseModel
 from models_provider.impl.base_stt import BaseSpeechToText
+from ...transport import check_catalog, endpoint
 
 
 class AliyunBaiLianOmiSpeechToText(MaxKBBaseModel, BaseSpeechToText):
@@ -16,76 +14,30 @@ class AliyunBaiLianOmiSpeechToText(MaxKBBaseModel, BaseSpeechToText):
     model: str
     params: dict
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.api_key = kwargs.get('api_key')
-        self.model = kwargs.get('model')
-        self.params = kwargs.get('params')
-        self.api_url = kwargs.get('api_url')
-
     @staticmethod
     def is_cache_model():
         return False
 
-    @staticmethod
-    def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
-        return AliyunBaiLianOmiSpeechToText(
-            model=model_name,
-            api_key=model_credential.get('api_key'),
-            api_url=model_credential.get('api_url') ,
-            params= model_kwargs,
-            **model_kwargs
-        )
-
+    @classmethod
+    def new_instance(cls, model_type, model_name, model_credential, **model_kwargs):
+        base = model_credential.get("api_url") or model_credential.get("api_base")
+        return cls(model=model_name, api_key=model_credential["api_key"], api_url=endpoint(base, compatible=True),
+                   params=cls.filter_optional_params(model_kwargs))
 
     def check_auth(self):
-        cwd = os.path.dirname(os.path.abspath(__file__))
-        with open(f'{cwd}/iat_mp3_16k.mp3', 'rb') as audio_file:
-            self.speech_to_text(audio_file)
-
-
+        check_catalog(self.api_url, self.api_key, self.model)
+        return True
 
     def speech_to_text(self, audio_file):
-        try:
-            client = OpenAI(
-                # 若没有配置环境变量，请用阿里云百炼API Key将下行替换为：api_key="sk-xxx",
-                api_key=self.api_key,
-                base_url=self.api_url,
-            )
-
-            base64_audio = base64.b64encode(audio_file.read()).decode("utf-8")
-
-            completion = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_audio",
-                                "input_audio": {
-                                    "data": f"data:;base64,{base64_audio}",
-                                    "format": "mp3",
-                                },
-                            },
-                            {"type": "text", "text": self.params.get('CueWord') or '这段音频在说什么'},
-                        ],
-                    },
-                ],
-                # 设置输出数据的模态，当前支持两种：["text","audio"]、["text"]
-                modalities=["text"],
-                # stream 必须设置为 True，否则会报错
-                stream=True,
-                stream_options={"include_usage": True},
-                extra_body = {'enable_thinking': False, **self.params},
-            )
-            result = []
-            for chunk in completion:
-                if chunk.choices and hasattr(chunk.choices[0].delta, 'content'):
-                    content = chunk.choices[0].delta.content
-                    result.append(content)
-            return "".join(result)
-
-        except Exception as err:
-            maxkb_logger.error(f":Error: {str(err)}: {traceback.format_exc()}")
-            raise err
+        raw = audio_file.read()
+        fmt = Path(getattr(audio_file, "name", "") or "").suffix.lstrip(".").lower()
+        fmt = fmt or ("wav" if raw.startswith(b"RIFF") else "mp3")
+        data = f"data:audio/{fmt};base64," + base64.b64encode(raw).decode("ascii")
+        content = [{"type": "input_audio", "input_audio": {"data": data, "format": fmt}},
+                   {"type": "text", "text": self.params.get("CueWord") or "这段音频在说什么，只回答音频的内容"}]
+        params = {k: v for k, v in self.params.items() if k != "CueWord" and v is not None}
+        with OpenAI(api_key=self.api_key, base_url=self.api_url) as client:
+            chunks = client.chat.completions.create(model=self.model, messages=[{"role": "user", "content": content}],
+                                                    modalities=["text"], stream=True, stream_options={"include_usage": True},
+                                                    extra_body=params)
+            return "".join(chunk.choices[0].delta.content or "" for chunk in chunks if chunk.choices)

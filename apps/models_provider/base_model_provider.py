@@ -43,6 +43,13 @@ class DownModelChunk:
         }
 
 
+def require_model_type(model_type):
+    from maxkb.capabilities import model_type_enabled
+
+    if not model_type_enabled(model_type):
+        raise AppApiException(400, f"Model type {model_type} requires the LiteKB media option")
+
+
 class IModelProvider(ABC):
     @abstractmethod
     def get_model_info_manage(self):
@@ -53,11 +60,14 @@ class IModelProvider(ABC):
         pass
 
     def get_model_type_list(self):
-        return self.get_model_info_manage().get_model_type_list()
+        from maxkb.capabilities import model_type_enabled
+
+        return [item for item in self.get_model_info_manage().get_model_type_list() if model_type_enabled(item["value"])]
 
     def get_model_list(self, model_type):
         if model_type is None:
             raise AppApiException(500, _('Model type cannot be empty'))
+        require_model_type(model_type)
         return self.get_model_info_manage().get_model_list_by_model_type(model_type)
 
     def get_model_credential(self, model_type, model_name):
@@ -226,13 +236,16 @@ class ModelInfoManage:
         return [model.to_dict() for model in self.model_list]
 
     def get_model_list_by_model_type(self, model_type):
-        return [model.to_dict() for model in self.model_list if model.model_type == model_type]
+        default = self.default_model_dict.get(model_type)
+        return [{**model.to_dict(), "is_default": bool(default and model.name == default.name)}
+                for model in self.model_list if model.model_type == model_type]
 
     def get_model_type_list(self):
         return [{'key': _type.value.get('message'), 'value': _type.value.get('code')} for _type in ModelTypeConst if
                 len([model for model in self.model_list if model.model_type == _type.name]) > 0]
 
     def get_model_info(self, model_type, model_name) -> ModelInfo:
+        require_model_type(model_type)
         model_info = self.model_dict.get(model_type, {}).get(model_name, self.default_model_dict.get(model_type))
         if model_info is None:
             raise AppApiException(500, _('The model does not support'))

@@ -22,15 +22,21 @@ from models_provider.impl.deepseek_model_provider.model.llm import DeepSeekChatM
 from maxkb.conf import PROJECT_DIR
 
 deepseek_llm_model_credential = DeepSeekLLMModelCredential()
+docs_url = "https://api-docs.deepseek.com/quick_start/pricing/"
 deepseek_llm_list = [
-    ModelInfo("deepseek-v4-pro", "", ModelTypeConst.LLM, deepseek_llm_model_credential, DeepSeekChatModel),
-    ModelInfo("deepseek-v4-flash", "", ModelTypeConst.LLM, deepseek_llm_model_credential, DeepSeekChatModel),
+    ModelInfo(name, desc, kind, deepseek_llm_model_credential, DeepSeekChatModel, docs_url=docs_url)
+    for kind, name, desc in [
+        (ModelTypeConst.LLM, "deepseek-flash", "V4.1 Flash · 1M context · text, vision and tools"),
+        (ModelTypeConst.LLM, "deepseek-v4-pro", "V4 Pro · 1M context · text and tools"),
+        (ModelTypeConst.IMAGE, "deepseek-flash", "V4.1 Flash · image understanding"),
+    ]
 ]
 
 model_info_manage = (
     ModelInfoManage.builder()
     .append_model_info_list(deepseek_llm_list)
     .append_default_model_info(deepseek_llm_list[0])
+    .append_default_model_info(deepseek_llm_list[-1])
     .build()
 )
 

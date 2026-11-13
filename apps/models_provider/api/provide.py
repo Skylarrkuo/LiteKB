@@ -28,6 +28,9 @@ class ModelListSerializer(serializers.Serializer):
     name = serializers.CharField(required=True, label=_("model name"))
     model_type = serializers.CharField(required=True, label=_("model type"))
     desc = serializers.CharField(required=True, label=_("model name"))
+    docs_url = serializers.URLField(required=False, label=_("API documentation"))
+    is_default = serializers.BooleanField(required=False)
+    status = serializers.CharField(required=False)
 
 
 class ModelParamsFormSerializer(serializers.Serializer):

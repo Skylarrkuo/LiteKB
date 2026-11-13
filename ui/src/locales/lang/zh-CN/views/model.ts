@@ -2,6 +2,9 @@ export default {
   title: '模型',
   provider: '供应商',
   providerPlaceholder: '选择供应商',
+  officialDocs: '官方 API 文档',
+  editSchema: '编辑参数定义',
+  retryDefaults: '重新加载模型配置',
   addModel: '添加模型',
   delete: {
     confirmTitle: '是否删除：',
@@ -44,7 +47,7 @@ export default {
     modeName: {
       label: '模型名称',
       placeholder: '请给基础模型设置一个名称',
-      tooltip: 'MaxKB 中自定义的模型名称',
+      tooltip: 'LiteKB 中自定义的模型名称',
       requiredMessage: '模型名称不能为空',
     },
     permissionType: {

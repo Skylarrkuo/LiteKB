@@ -1,36 +1,15 @@
-# coding=utf-8
-import json
-import time
-from typing import Dict, Optional, Any, Iterator
+from langchain_core.messages import HumanMessage
 
-import requests
-from langchain_core.language_models import LanguageModelInput
-from langchain_core.messages import BaseMessageChunk, AIMessage
-from langchain_core.runnables import RunnableConfig
-
-from models_provider.base_model_provider import MaxKBBaseModel
-from models_provider.impl.base_chat_open_ai import BaseChatOpenAI
+from .llm import BaiLianChatModel
 
 
-class QwenVLChatModel(MaxKBBaseModel, BaseChatOpenAI):
+# Locally generated 128×128 black PNG. The save probe exercises a real visual-input request.
+_TEST_IMAGE = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAAAAADmVT4XAAAAJklEQVR4"
+               "nO3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAAO8GQIAAAfnHrWYAAAAASUVORK5CYII=")
 
-    @staticmethod
-    def is_cache_model():
-        return False
 
-    @staticmethod
-    def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
-        optional_params = MaxKBBaseModel.filter_optional_params(model_kwargs)
-        chat_tong_yi = QwenVLChatModel(
-            model_name=model_name,
-            openai_api_key=model_credential.get('api_key'),
-            openai_api_base=model_credential.get('api_base') or 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            # stream_options={"include_usage": True},
-            streaming=True,
-            stream_usage=True,
-            **optional_params,
-        )
-        return chat_tong_yi
-
-    def check_auth(self, api_key):
+class QwenVLChatModel(BaiLianChatModel):
+    def check_auth(self, api_key=None):
+        self.invoke([HumanMessage(content=[{"type": "text", "text": "Name this color."},
+                                           {"type": "image_url", "image_url": {"url": _TEST_IMAGE}}])])
         return True

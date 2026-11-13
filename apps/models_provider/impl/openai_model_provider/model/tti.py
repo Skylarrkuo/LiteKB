@@ -1,15 +1,8 @@
-from typing import Dict
-
 from openai import OpenAI
 
-from common.config.tokenizer_manage_config import TokenizerManage
 from models_provider.base_model_provider import MaxKBBaseModel
 from models_provider.impl.base_tti import BaseTextToImage
-
-
-def custom_get_token_ids(text: str):
-    tokenizer = TokenizerManage.get_tokenizer()
-    return tokenizer.encode(text)
+from ..profiles import IMAGE_MODELS, family
 
 
 class OpenAITextToImage(MaxKBBaseModel, BaseTextToImage):
@@ -18,47 +11,39 @@ class OpenAITextToImage(MaxKBBaseModel, BaseTextToImage):
     model: str
     params: dict
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.api_key = kwargs.get('api_key')
-        self.api_base = kwargs.get('api_base')
-        self.model = kwargs.get('model')
-        self.params = kwargs.get('params')
-
     @staticmethod
     def is_cache_model():
         return False
 
     @staticmethod
-    def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
-        optional_params = {'params': {'size': '1024x1024', 'quality': 'standard', 'n': 1}}
-        for key, value in model_kwargs.items():
-            if key not in ['model_id', 'use_local', 'streaming']:
-                optional_params['params'][key] = value
-        return OpenAITextToImage(
-            model=model_name,
-            api_base=model_credential.get('api_base'),
-            api_key=model_credential.get('api_key'),
-            **optional_params,
-        )
+    def new_instance(model_type, model_name, model_credential, **model_kwargs):
+        options = MaxKBBaseModel.filter_optional_params(model_kwargs)
+        model = family(model_name)
+        if model in IMAGE_MODELS:
+            options.setdefault("size", "1024x1024")
+            # Old Studio image forms saved DALL·E values for all model IDs.
+            options["quality"] = {"standard": "auto", "hd": "high"}.get(options.get("quality"), options.get("quality", "auto"))
+            options.pop("response_format", None)  # GPT Image returns base64.
+            complexity = options.pop("complexity", None)
+            if complexity is not None and model.startswith("gpt-image-2.6-"):
+                options["extra_body"] = {**(options.get("extra_body") or {}), "complexity": complexity}
+            if model == "gpt-image-1.5":
+                migrated_sizes = {"1024x1792": "1024x1536", "1792x1024": "1536x1024"}
+                options["size"] = migrated_sizes.get(options["size"], options["size"])
+        else:
+            options.setdefault("size", "1024x1024")
+            options.setdefault("quality", "standard")
+        options.setdefault("n", 1)
+        if model_name == "dall-e-3" and options["n"] != 1:
+            raise ValueError("DALL·E 3 supports one image per request")
+        return OpenAITextToImage(api_base=model_credential["api_base"], api_key=model_credential["api_key"],
+                                 model=model_name, params=options)
 
     def check_auth(self):
-        chat = OpenAI(api_key=self.api_key, base_url=self.api_base)
-        response_list = chat.models.with_raw_response.list()
+        with OpenAI(api_key=self.api_key, base_url=self.api_base) as client:
+            client.models.retrieve(self.model)
 
-        # self.generate_image('生成一个小猫图片')
-
-    def generate_image(self, prompt: str, negative_prompt: str = None):
-        chat = OpenAI(api_key=self.api_key, base_url=self.api_base)
-        res = chat.images.generate(model=self.model, prompt=prompt, **self.params)
-        file_urls = []
-        try:
-            for content in res.data:
-                if content.url:
-                    file_urls.append(content.url)
-                elif content.b64_json:
-                    file_urls.append(content.b64_json)
-
-            return file_urls
-        except Exception as e:
-            raise RuntimeError(f"OpenAI generate image error: {e}") from e
+    def generate_image(self, prompt, negative_prompt=None):
+        with OpenAI(api_key=self.api_key, base_url=self.api_base) as client:
+            result = client.images.generate(model=self.model, prompt=prompt, **self.params)
+        return [image.url or image.b64_json for image in result.data if image.url or image.b64_json]

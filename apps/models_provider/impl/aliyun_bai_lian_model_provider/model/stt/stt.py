@@ -2,9 +2,6 @@ import os
 import tempfile
 from typing import Dict
 
-import dashscope
-from dashscope.audio.asr import (Recognition)
-from pydub import AudioSegment
 
 from models_provider.base_model_provider import MaxKBBaseModel
 from models_provider.impl.base_stt import BaseSpeechToText
@@ -28,16 +25,10 @@ class AliyunBaiLianSpeechToText(MaxKBBaseModel, BaseSpeechToText):
 
     @staticmethod
     def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
-        optional_params = {}
-        if 'max_tokens' in model_kwargs and model_kwargs['max_tokens'] is not None:
-            optional_params['max_tokens'] = model_kwargs['max_tokens']
-        if 'temperature' in model_kwargs and model_kwargs['temperature'] is not None:
-            optional_params['temperature'] = model_kwargs['temperature']
         return AliyunBaiLianSpeechToText(
             model=model_name,
             api_key=model_credential.get('api_key'),
-            params=model_kwargs,
-            **optional_params,
+            params=MaxKBBaseModel.filter_optional_params(model_kwargs),
         )
 
     def check_auth(self):
@@ -46,8 +37,9 @@ class AliyunBaiLianSpeechToText(MaxKBBaseModel, BaseSpeechToText):
             self.speech_to_text(f)
 
     def speech_to_text(self, audio_file):
-        dashscope.api_key = self.api_key
+        from dashscope.audio.asr import Recognition
         recognition_params = {
+            'api_key': self.api_key,
             'model': self.model,
             'format': 'mp3',
             'sample_rate': 16000,
@@ -64,10 +56,12 @@ class AliyunBaiLianSpeechToText(MaxKBBaseModel, BaseSpeechToText):
             temp_file_path = temp_file.name
 
         try:
+            from pydub import AudioSegment
+
             audio = AudioSegment.from_file(temp_file_path)
             if audio.channels != 1:
                 audio = audio.set_channels(1)
-            audio = audio.set_frame_rate(16000)
+            audio = audio.set_frame_rate(recognition_params['sample_rate'])
 
             # 将转换后的音频文件保存到临时文件中
             audio.export(temp_file_path, format='mp3')

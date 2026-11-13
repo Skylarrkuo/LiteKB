@@ -10,10 +10,9 @@ import json
 from typing import Dict, Any
 
 from langchain_core.language_models import LanguageModelInput
-from langchain_core.messages import AIMessage
 
 from models_provider.base_model_provider import MaxKBBaseModel
-from models_provider.impl.base_chat_open_ai import BaseChatOpenAI
+from models_provider.impl.reasoning_chat import ReasoningChat
 
 
 def _move_tool_images_to_user_messages(messages):
@@ -44,7 +43,7 @@ def _move_tool_images_to_user_messages(messages):
     return result
 
 
-class DeepSeekChatModel(MaxKBBaseModel, BaseChatOpenAI):
+class DeepSeekChatModel(MaxKBBaseModel, ReasoningChat):
 
     @staticmethod
     def is_cache_model():
@@ -53,14 +52,26 @@ class DeepSeekChatModel(MaxKBBaseModel, BaseChatOpenAI):
     @staticmethod
     def new_instance(model_type, model_name, model_credential: Dict[str, object], **model_kwargs):
         optional_params = MaxKBBaseModel.filter_optional_params(model_kwargs)
-
-        deepseek_chat_open_ai = DeepSeekChatModel(
+        extra = dict(optional_params.pop("extra_body", {}) or {})
+        mode = optional_params.pop("thinking_mode", None)
+        if mode in ("enabled", "disabled"):
+            extra["thinking"] = {"type": mode}
+        thinking = extra.get("thinking", {}).get("type", "enabled") == "enabled"
+        if thinking:
+            for key in ("temperature", "presence_penalty", "frequency_penalty"):
+                optional_params.pop(key, None)
+        else:
+            optional_params.pop("reasoning_effort", None)
+        if (model_name == "deepseek-v4-pro" and thinking) or (model_name != "deepseek-v4-pro" and not thinking):
+            optional_params.pop("top_p", None)
+        return DeepSeekChatModel(
             model=model_name,
             openai_api_base=model_credential.get('api_base') or 'https://api.deepseek.com',
             openai_api_key=model_credential.get('api_key'),
+            extra_body=extra or None,
+            use_responses_api=False,
             **optional_params,
         )
-        return deepseek_chat_open_ai
 
     def _get_request_payload(
             self,
@@ -69,33 +80,9 @@ class DeepSeekChatModel(MaxKBBaseModel, BaseChatOpenAI):
             stop: list[str] | None = None,
             **kwargs: Any,
     ) -> dict:
-        # Get original messages to preserve reasoning_content before base conversion
-        messages = self._convert_input(input_).to_messages()
-        # Store reasoning_content for AIMessages with tool_calls
-        # According to DeepSeek API docs, reasoning_content is REQUIRED when tool_calls
-        # are present during the tool invocation process (within same question/turn).
-        # See: https://api-docs.deepseek.com/guides/thinking_mode#tool-calls
-        reasoning_content_map = {}
-        for i, msg in enumerate(messages):
-            if (
-                    isinstance(msg, AIMessage)
-                    and (msg.tool_calls or msg.invalid_tool_calls)
-                    and (reasoning := msg.additional_kwargs.get("reasoning_content"))
-            ):
-                reasoning_content_map[i] = reasoning
-
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
-
-        # Restore reasoning_content for assistant messages with tool_calls
-        # This is required by DeepSeek API - missing it causes 400 error
-        if "messages" in payload and reasoning_content_map:
-            for i, message in enumerate(payload["messages"]):
-                if (
-                        i in reasoning_content_map
-                        and message.get("role") == "assistant"
-                        and message.get("tool_calls")
-                ):
-                    message["reasoning_content"] = reasoning_content_map[i]
+        if "max_completion_tokens" in payload:
+            payload["max_tokens"] = payload.pop("max_completion_tokens")
 
         # Move images before JSON encoding tool content, otherwise vision-capable
         # gateways receive base64 as ordinary text. Only the request is changed;

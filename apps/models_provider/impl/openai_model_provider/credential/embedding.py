@@ -12,27 +12,17 @@ from django.utils.translation import gettext as _
 
 from common import forms
 from common.exception.app_exception import AppApiException
-from common.forms import BaseForm, TooltipLabel
+from common.forms import BaseForm
 from models_provider.base_model_provider import BaseModelCredential, ValidCode
 from common.utils.logger import maxkb_logger
+from models_provider.impl.openai_model_provider.profiles import EMBEDDING_DIMENSIONS, choices
 
 class OpenAIEmbeddingModelParams(BaseForm):
-    dimensions = forms.SingleSelect(
-        TooltipLabel(
-            _('Dimensions'),
-            _('')
-        ),
-        required=True,
-        default_value=1024,
-        value_field='value',
-        text_field='label',
-        option_list=[
-            {'label': '1536', 'value': '1536'},
-            {'label': '1024', 'value': '1024'},
-            {'label': '768', 'value': '768'},
-            {'label': '512', 'value': '512'},
-        ]
-    )
+    dimensions = None
+
+    def __init__(self, maximum):
+        values = [value for value in (256, 512, 768, 1024, 1536, 3072) if value <= maximum]
+        self.dimensions = choices(_('Dimensions'), values, maximum)
 
 
 class OpenAIEmbeddingCredential(BaseForm, BaseModelCredential):
@@ -50,7 +40,7 @@ class OpenAIEmbeddingCredential(BaseForm, BaseModelCredential):
                 else:
                     return False
         try:
-            model = provider.get_model(model_type, model_name, model_credential)
+            model = provider.get_model(model_type, model_name, model_credential, **(model_params or {}))
             model.embed_query(_('Hello'))
         except Exception as e:
             maxkb_logger.error(f'Exception: {e}', exc_info=True)
@@ -68,7 +58,8 @@ class OpenAIEmbeddingCredential(BaseForm, BaseModelCredential):
         return {**model, 'api_key': super().encryption(model.get('api_key', ''))}
 
     def get_model_params_setting_form(self, model_name):
-        return OpenAIEmbeddingModelParams()
+        maximum = EMBEDDING_DIMENSIONS.get(model_name)
+        return OpenAIEmbeddingModelParams(maximum) if maximum else BaseForm()
 
-    api_base = forms.TextInputField('API URL', required=True)
+    api_base = forms.TextInputField('API URL', required=True, default_value='https://api.openai.com/v1')
     api_key = forms.PasswordInputField('API Key', required=True)

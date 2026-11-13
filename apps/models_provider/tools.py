@@ -19,7 +19,7 @@ import json
 from typing import Dict
 
 from common.utils.rsa_util import rsa_long_decrypt
-from models_provider.constants.model_provider_constants import ModelProvideConstants
+from models_provider.constants.model_provider_constants import get_provider
 
 
 def get_model_(provider, model_type, model_name, credential, model_id, use_local=False, **kwargs):
@@ -49,15 +49,6 @@ def get_model(model, **kwargs):
     @return: 模型实例
     """
     return get_model_(model.provider, model.model_type, model.model_name, model.credential, str(model.id), **kwargs)
-
-
-def get_provider(provider):
-    """
-    获取供应商实例
-    @param provider: 供应商字符串
-    @return: 供应商实例
-    """
-    return ModelProvideConstants[provider].value
 
 
 def get_model_list(provider, model_type):
@@ -106,6 +97,8 @@ def is_valid_credential(provider, model_type, model_name, model_credential: Dict
 
 
 def get_model_by_id(_id, workspace_id):
+    from litekb_api.run_policy import require_ids
+    require_ids("model", [_id])
     model = QuerySet(Model).filter(id=_id).first()
     get_authorized_model = DatabaseModelManage.get_model("get_authorized_model")
     if model and model.workspace_id != workspace_id and get_authorized_model is not None:
