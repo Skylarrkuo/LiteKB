@@ -15,7 +15,7 @@
         :draggable="true"
       />
     </template>
-    <KnowledgeListContainer @refreshFolder="refreshFolder">
+    <KnowledgeListContainer :folder-loading="loading" @refreshFolder="refreshFolder">
       <template #header>
         <FolderBreadcrumb :folderList="folderList" @click="folderClickHandle" />
       </template>

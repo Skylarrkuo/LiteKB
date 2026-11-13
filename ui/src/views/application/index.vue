@@ -108,7 +108,7 @@
           </div>
         </div>
       </template>
-      <div class="agent-results" :aria-busy="listLoading" v-loading="loading || (listLoading && !applicationList.length)">
+      <div class="agent-results" :aria-busy="loading || listLoading" v-loading="loading && applicationList.length > 0">
         <InfiniteScroll
           :size="applicationList.length"
           :total="listFailed ? 0 : paginationConfig.total"
@@ -117,7 +117,7 @@
           @load="getList"
           :loading="listLoading"
         >
-          <div v-if="applicationList.length" class="agent-grid">
+          <div v-if="applicationList.length" class="agent-grid studio-result-enter">
             <article v-for="item in applicationList" :key="item.id" class="agent-card" :class="{ selected: multipleSelection.includes(item.id) }">
               <div class="agent-card-heading">
                 <img class="agent-icon" :src="isAppIcon(resetUrl(item.icon)) || brandIcon" alt="" />
@@ -211,6 +211,7 @@
               </footer>
             </article>
           </div>
+          <ListPlaceholder v-else-if="loading || listLoading" />
           <div v-else-if="!listLoading && !loading && !listFailed" class="agent-empty">
             <span aria-hidden="true" class="empty-mark"><el-icon v-if="activeFilter"><Search /></el-icon><AppIcon v-else iconName="app-agent" /></span>
             <h3>{{ activeFilter ? $t('views.application.noMatch') : $t('views.application.emptyFolder') }}</h3>
@@ -280,6 +281,7 @@
 </template>
 
 <script lang="ts" setup>
+import ListPlaceholder from '@/components/ListPlaceholder.vue'
 import { onBeforeUnmount, onMounted, ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { CheckboxValueType } from 'element-plus'

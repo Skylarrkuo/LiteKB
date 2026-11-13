@@ -22,7 +22,7 @@
       <el-button link type="primary" @click="loadList()">{{ t('runTrace.retry') }}</el-button>
     </div>
     <div class="run-panel" :aria-busy="listBusy">
-      <table v-if="rows.length" aria-labelledby="runs-title">
+      <table v-if="rows.length" class="studio-result-enter" aria-labelledby="runs-title">
         <thead>
           <tr>
             <th scope="col">Run ID</th>

@@ -25,7 +25,7 @@
       <el-button @click="refreshFolder">{{ $t('views.tool.library.retry') }}</el-button>
     </div>
     <div v-else-if="loading && !folderList.length" class="folder-error" aria-busy="true">
-      <el-skeleton animated :rows="3" />
+      <ListPlaceholder class="folder-placeholder" />
     </div>
     <ToolListContainer v-else-if="folderList.length" @refreshFolder="refreshFolder">
       <template #header>
@@ -53,6 +53,7 @@
 </template>
 
 <script lang="ts" setup>
+import ListPlaceholder from '@/components/ListPlaceholder.vue'
 import { onBeforeUnmount, onMounted, ref, computed } from 'vue'
 import { FolderOpened } from '@element-plus/icons-vue'
 import ToolListContainer from '@/views/tool/component/ToolListContainer.vue'
@@ -117,6 +118,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.folder-placeholder { width: 100%; }
 .folder-title,
 .folder-heading,
 .folder-error {

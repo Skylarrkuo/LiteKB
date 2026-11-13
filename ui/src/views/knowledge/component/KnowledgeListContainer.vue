@@ -154,7 +154,8 @@
     </template>
 
     <div
-      v-loading.fullscreen.lock="paginationConfig.current_page === 1 && loading"
+      :aria-busy="loading || listBusy || folderLoading"
+      v-loading="loading && knowledge.knowledgeList.length > 0"
       class="library-results"
     >
       <InfiniteScroll
@@ -163,10 +164,10 @@
         :page_size="paginationConfig.page_size"
         v-model:current_page="paginationConfig.current_page"
         @load="getList"
-        :loading="loading"
+        :loading="listBusy"
       >
         <el-checkbox-group v-model="multipleSelection" @change="handleCheckedChatChange">
-          <div v-if="knowledge.knowledgeList.length > 0" class="library-grid">
+          <div v-if="knowledge.knowledgeList.length > 0" class="library-grid studio-result-enter">
             <template v-for="item in knowledge.knowledgeList" :key="item.id">
                 <CardBox
                   :title="item.name"
@@ -339,6 +340,7 @@
                 </CardBox>
             </template>
           </div>
+          <ListPlaceholder v-else-if="folderLoading || listBusy" />
           <el-empty :description="$t('common.noData')" v-else-if="!loading" class="library-empty">
             <template #image><el-icon aria-hidden="true"><Collection /></el-icon></template>
             <el-button v-if="!isShared && !isBatch && !search_form[search_type] && permissionPrecise.create()"
@@ -409,8 +411,9 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, reactive, shallowRef, nextTick, computed, watch } from 'vue'
-import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
+import ListPlaceholder from '@/components/ListPlaceholder.vue'
+import { onBeforeUnmount, onMounted, ref, reactive, shallowRef, nextTick, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { cloneDeep, get } from 'lodash'
 import type { CheckboxValueType } from 'element-plus'
 import CreateKnowledgeDialog from '@/views/knowledge/create-component/CreateKnowledgeDialog.vue'
@@ -440,7 +443,10 @@ const openResourceMappingDrawer = (knowledge: any) => {
 const router = useRouter()
 const route = useRoute()
 const { folder, user, knowledge } = useStore()
-onBeforeRouteLeave((to, from) => {
+defineProps<{ folderLoading?: boolean }>()
+let listVersion = 0
+onBeforeUnmount(() => {
+  ++listVersion
   knowledge.setKnowledgeList([])
 })
 
@@ -481,6 +487,7 @@ const MoreFilledPermission = (item: any) => {
 }
 
 const loading = ref(false)
+const listBusy = ref(false)
 
 const search_type = ref('name')
 const search_form = ref<any>({
@@ -751,6 +758,8 @@ watch(
 )
 
 function getList() {
+  const version = ++listVersion
+  listBusy.value = true
   const params: any = {
     folder_id: folder.currentFolder?.id || user.getWorkspaceId(),
     scope: apiType.value === 'systemShare' ? 'SHARED' : 'WORKSPACE',
@@ -759,11 +768,13 @@ function getList() {
     params[search_type.value] = search_form.value[search_type.value]
   }
   loadSharedApi({ type: 'knowledge', isShared: isShared.value, systemType: apiType.value })
-    .getKnowledgeListPage(paginationConfig, params, loading)
+    .getKnowledgeListPage(paginationConfig, params)
     .then((res: any) => {
+      if (version !== listVersion) return
       paginationConfig.total = res.data?.total
       knowledge.setKnowledgeList([...knowledge.knowledgeList, ...res.data.records])
     })
+    .finally(() => { if (version === listVersion) listBusy.value = false })
 }
 
 function searchHandle() {

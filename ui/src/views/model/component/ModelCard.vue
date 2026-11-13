@@ -72,7 +72,7 @@
     </div>
 
     <template #mouseEnter v-if="MoreFilledPermission(model.id)">
-      <el-dropdown trigger="click" v-if="!isShared">
+      <el-dropdown trigger="click" v-if="!isShared" @visible-change="(visible: boolean) => { if (visible) actionsMounted = true }">
         <el-button text @click.stop :aria-label="$t('studio.actions') + ' · ' + model.name">
           <AppIcon iconName="app-more" class="color-secondary"></AppIcon>
         </el-button>
@@ -139,18 +139,20 @@
         </template>
       </el-dropdown>
     </template>
-    <EditModel ref="editModelRef" @submit="emit('change')"></EditModel>
-    <ParamSettingDialog ref="paramSettingRef" />
-    <AuthorizedWorkspace
-      ref="AuthorizedWorkspaceDialogRef"
-      v-if="isSystemShare"
-    ></AuthorizedWorkspace>
-    <ResourceAuthorizationDrawer
-      :type="SourceTypeEnum.MODEL"
-      ref="ResourceAuthorizationDrawerRef"
-      v-if="apiType === 'workspace'"
-    />
-    <ResourceMappingDrawer ref="resourceMappingDrawerRef"></ResourceMappingDrawer>
+    <template v-if="actionsMounted">
+      <EditModel ref="editModelRef" @submit="emit('change')"></EditModel>
+      <ParamSettingDialog ref="paramSettingRef" />
+      <AuthorizedWorkspace
+        ref="AuthorizedWorkspaceDialogRef"
+        v-if="isSystemShare"
+      ></AuthorizedWorkspace>
+      <ResourceAuthorizationDrawer
+        :type="SourceTypeEnum.MODEL"
+        ref="ResourceAuthorizationDrawerRef"
+        v-if="apiType === 'workspace'"
+      />
+      <ResourceMappingDrawer ref="resourceMappingDrawerRef"></ResourceMappingDrawer>
+    </template>
   </card-box>
 </template>
 <script setup lang="ts">
@@ -229,6 +231,7 @@ const errMessage = computed(() => {
   }
   return ''
 })
+const actionsMounted = ref(false)
 const emit = defineEmits(['change', 'update:model'])
 const editModelRef = ref<InstanceType<typeof EditModel>>()
 let interval: any

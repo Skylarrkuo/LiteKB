@@ -12,3 +12,12 @@
 @media (prefers-reduced-motion: reduce) {
   #nprogress .bar { transition: none !important; }
 }
+
+// Reveal newly mounted results as one surface, including responses arriving after navigation.
+@media (prefers-reduced-motion: no-preference) {
+  .studio-result-enter { animation: studio-reveal 180ms ease-out; }
+  @keyframes studio-reveal { from { opacity: .58; } to { opacity: 1; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-viewport .el-skeleton.is-animated .el-skeleton__item { animation: none; }
+}

@@ -156,7 +156,7 @@
       </div>
     </template>
 
-    <div v-loading="paginationConfig.current_page === 1 && listBusy" class="tool-results">
+    <div :aria-busy="listBusy" class="tool-results">
       <div v-if="listError" class="tool-notice" role="alert">
         {{ $t('views.tool.library.listError') }}
         <el-button link type="primary" @click="getList">{{
@@ -172,7 +172,7 @@
         :loading="listBusy || listError"
       >
         <el-checkbox-group v-model="multipleSelection" @change="handleCheckedChatChange">
-          <el-row v-if="tool.toolList.length > 0" :gutter="15" class="w-full">
+          <el-row v-if="tool.toolList.length > 0" :gutter="15" class="w-full studio-result-enter">
             <template v-for="item in tool.toolList" :key="item.id">
               <el-col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" class="mb-16">
                 <CardBox
@@ -404,6 +404,7 @@
               </el-col>
             </template>
           </el-row>
+          <ListPlaceholder v-else-if="listBusy" />
           <el-empty
             v-else-if="!listBusy && !listError"
             :image-size="70"
@@ -501,12 +502,13 @@
 </template>
 
 <script lang="ts" setup>
+import ListPlaceholder from '@/components/ListPlaceholder.vue'
 import { onBeforeUnmount, onMounted, ref, reactive, computed, watch } from 'vue'
 import { Upload } from '@element-plus/icons-vue'
 import { hasStartupValue } from '../startup-values'
 import ToolImportDialog from './ToolImportDialog.vue'
 import { cloneDeep } from 'lodash'
-import { useRoute, onBeforeRouteLeave, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import type { CheckboxValueType } from 'element-plus'
 import InitParamDrawer from '@/views/tool/component/InitParamDrawer.vue'
 import ToolFormDrawer from '@/views/tool/ToolFormDrawer.vue'
@@ -542,10 +544,6 @@ const router = useRouter()
 const route = useRoute()
 
 const { folder, user, tool } = useStore()
-onBeforeRouteLeave(() => {
-  ++listRequest
-  tool.setToolList([])
-})
 const emit = defineEmits(['refreshFolder'])
 
 const apiType = computed(() => {
@@ -1285,6 +1283,7 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => {
+  tool.setToolList([])
   ++listRequest
 })
 </script>

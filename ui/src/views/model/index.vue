@@ -10,7 +10,7 @@
         :active="active_provider"
       />
     </template>
-    <ContentContainer v-loading="list_model_loading">
+    <ContentContainer :aria-busy="list_model_loading">
       <template #header>
         <div class="model-heading">
           <h2>{{ active_provider?.name || $t('views.model.modelType.allModel') }}</h2>
@@ -75,7 +75,7 @@
         </div>
       </template>
 
-      <div v-if="model_list.length" class="model-grid">
+      <div v-if="model_list.length" class="model-grid studio-result-enter">
         <ModelCard
           v-for="model in model_list"
           :key="model.id"
@@ -88,6 +88,7 @@
           :apiType="apiType"
         />
       </div>
+      <ListPlaceholder v-else-if="loading || list_model_loading" />
       <div v-else-if="!loading && !list_model_loading" class="model-empty">
         <span class="empty-icon" aria-hidden="true"
           ><el-icon><Cpu /></el-icon
@@ -112,6 +113,7 @@
 </template>
 
 <script lang="ts" setup>
+import ListPlaceholder from '@/components/ListPlaceholder.vue'
 import { onMounted, ref, computed } from 'vue'
 import type { Provider, Model } from '@/api/type/model'
 import ModelCard from '@/views/model/component/ModelCard.vue'
@@ -232,10 +234,10 @@ const search_type_change = () => {
 
 onMounted(() => {
   model.asyncGetProvider(loading).then((ok: any) => {
-    active_provider.value = allObj
     provider_list.value = [allObj, ...ok.data]
-    list_model()
   })
+  active_provider.value = allObj
+  list_model()
 })
 </script>
 
