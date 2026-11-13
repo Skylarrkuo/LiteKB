@@ -6,7 +6,7 @@ import type {Ref} from "vue";
 export interface themeStateTypes {
   themeInfo: any
 }
-const defalueColor = '#3370FF'
+const defaultColor = '#164B50'
 
 const useThemeStore = defineStore('theme', {
   state: (): themeStateTypes => ({
@@ -14,12 +14,12 @@ const useThemeStore = defineStore('theme', {
   }),
   actions: {
     isDefaultTheme() {
-      return !this.themeInfo?.theme || this.themeInfo?.theme === defalueColor
+      return !this.themeInfo?.theme || this.themeInfo.theme.toUpperCase() === defaultColor
     },
 
     setTheme(data?: any) {
-      const { changeTheme } = useElementPlusTheme(this.themeInfo?.theme || defalueColor)
-      changeTheme(data?.['theme'] || defalueColor)
+      const { changeTheme } = useElementPlusTheme(this.themeInfo?.theme || defaultColor)
+      changeTheme(data?.['theme'] || defaultColor)
       this.themeInfo = cloneDeep(data)
     },
 

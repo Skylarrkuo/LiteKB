@@ -6,3 +6,9 @@
 @use './md-editor.scss';
 @import 'nprogress/nprogress.css';
 @import 'md-editor-v3/lib/style.css';
+
+#nprogress .bar { background: var(--studio-ink); }
+#nprogress .peg { box-shadow: 0 0 5px var(--studio-mint); }
+@media (prefers-reduced-motion: reduce) {
+  #nprogress .bar { transition: none !important; }
+}

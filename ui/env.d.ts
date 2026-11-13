@@ -22,3 +22,7 @@ interface Window {
     chatPrefix: string
   }
 }
+
+declare module '@litekb-media-nodes' {
+  export const mediaNodes: Record<string, { default: { type: string } }>
+}

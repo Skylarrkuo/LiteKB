@@ -1,5 +1,13 @@
 <template>
-  <el-card shadow="hover" class="card-box" @mouseenter="cardEnter()" @mouseleave="cardLeave()">
+  <el-card
+    shadow="hover"
+    class="card-box"
+    :tabindex="!disabled && ($attrs.onClick || $slots.mouseEnter) ? 0 : undefined"
+    @focusin="cardEnter()"
+    @keydown.enter.self="activateCard"
+    @mouseenter="cardEnter()"
+    @mouseleave="cardLeave()"
+  >
     <div class="card-header">
       <slot name="header">
         <div class="title flex align-center">
@@ -10,7 +18,7 @@
               </el-avatar>
             </slot>
           </div>
-          <div style="width: 90%" class="mt-4">
+          <div class="card-labels">
             <slot name="title">
               <span class="ellipsis-1" :title="title" style="width: 80%">
                 {{ title }}
@@ -38,13 +46,20 @@
         <slot name="footer"></slot>
       </div>
       <div @mouseenter="subHoveredEnter">
-        <slot name="mouseEnter" v-if="$slots.mouseEnter && show" />
+        <slot
+          name="mouseEnter"
+          v-if="$slots.mouseEnter && !disabled && (show || alwaysShowActions || smallScreen)"
+        />
       </div>
     </div>
   </el-card>
 </template>
+<script lang="ts">
+import { createSharedComposable, useMediaQuery } from '@vueuse/core'
+const useCompactActions = createSharedComposable(() => useMediaQuery('(max-width: 760px), (hover: none)'))
+</script>
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, useAttrs, watch } from 'vue'
 import { t } from '@/locales'
 defineOptions({ name: 'CardBox' })
 const props = withDefaults(
@@ -62,6 +77,7 @@ const props = withDefaults(
      */
     showIcon?: boolean
     disabled?: boolean
+    alwaysShowActions?: boolean
   }>(),
   { title: t('common.title'), description: '', showIcon: true, border: true, disabled: false },
 )
@@ -76,6 +92,11 @@ watch(
   },
 )
 const show = ref(false)
+const attrs = useAttrs()
+const smallScreen = useCompactActions()
+function activateCard(event: KeyboardEvent) {
+  if (attrs.onClick && !props.disabled) (event.currentTarget as HTMLElement).click()
+}
 // card上面存在dropdown菜单
 const subHovered = ref(false)
 function cardEnter() {
@@ -100,7 +121,10 @@ function subHoveredEnter() {
   min-width: var(--card-min-width);
   line-height: 20px !important;
   .card-header {
-    margin-top: -5px;
+    .card-labels {
+      min-width: 0;
+      flex: 1;
+    }
   }
   .description {
     line-height: 22px;

@@ -1,24 +1,26 @@
 <template>
-  <div
-    class="menu-item-container h-full border-r-6"
+  <router-link
+    class="menu-item-container"
     :class="isActive ? 'active' : ''"
-    @click="router.push({ name: menu.name })"
+    :to="{ name: menu.name }"
+    :title="$t(menu.meta?.title as string)"
+    :aria-label="$t(menu.meta?.title as string)"
+    :aria-current="isActive ? 'page' : undefined"
   >
     <div class="title flex align-center">
       <AppIcon
         :iconName="isActive ? menu.meta?.iconActive || menu.meta?.icon : menu?.meta?.icon"
         style="font-size: 16px"
-        class="mr-4"
+        aria-hidden="true"
       />
       <span class="title-text"> {{ $t(menu.meta?.title as string) }}</span>
     </div>
-  </div>
+  </router-link>
 </template>
 <script setup lang="ts">
-import { useRouter, useRoute, type RouteRecordRaw } from 'vue-router'
+import { useRoute, type RouteRecordRaw } from 'vue-router'
 import { computed } from 'vue'
 
-const router = useRouter()
 const route = useRoute()
 
 const props = defineProps<{
@@ -32,33 +34,49 @@ const isActive = computed(() => {
 </script>
 <style lang="scss" scoped>
 .menu-item-container {
-  margin-right: 8px;
+  flex: 0 0 auto;
+  color: #465b54;
+  text-decoration: none;
   cursor: pointer;
   font-size: 14px;
   position: relative;
-  padding: 6px 12px;
-
-  .icon {
-    font-size: 15px;
-    margin-right: 5px;
-    margin-top: 2px;
+  padding: 8px 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  font-weight: 550;
+  border-radius: 10px;
+  .title {
+    gap: 6px;
   }
-
+  &:focus-visible {
+    outline-offset: -2px;
+  }
   &:hover {
-    background-color: rgba(var(--el-text-color-primary-rgb), 0.1);
+    background-color: #dce7e0;
   }
   &.active {
-    background-color: #ffffff;
-    box-shadow: 0px 2px 4px 0px rgba(var(--el-text-color-primary-rgb), 0.12);
-
-    .title {
-      color: var(--el-color-primary) !important;
-    }
+    background-color: var(--studio-ink);
+    color: white;
+    box-shadow: 0 1px 3px rgb(22 75 80 / 14%);
+    :deep(.app-icon), :deep(.el-icon) { color: var(--studio-mint); }
+    &:focus-visible { outline-color: var(--studio-mint) !important; }
   }
-  .title-text {
-    @media (max-width: 1200px) {
-      display: none;
-    }
+}
+@media (max-width: 1050px) {
+  .menu-item-container {
+    padding: 8px 10px;
+  }
+}
+@media (max-width: 550px) {
+  .menu-item-container {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+  .menu-item-container .title {
+    gap: 3px;
+  }
+  .menu-item-container .title :deep(svg) {
+    width: 14px;
   }
 }
 </style>

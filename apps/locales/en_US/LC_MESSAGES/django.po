@@ -6492,7 +6492,7 @@ msgstr ""
 
 #: apps/system_manage/views/system_profile.py:22
 #: apps/system_manage/views/system_profile.py:23
-msgid "Get MaxKB related information"
+msgid "Get LiteKB related information"
 msgstr ""
 
 #: apps/system_manage/views/system_profile.py:25

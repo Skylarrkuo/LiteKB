@@ -1,68 +1,53 @@
-·
 <template>
-  <div class="app-top-bar-container border-b flex-center">
-    <div class="logo mt-4">
-      <LogoFull />
-    </div>
-
-    <div class="flex-between w-full">
-      <div class="ml-24 flex align-center w-120">
-        <!-- 企业版: 工作空间下拉框-->
-        <el-divider
-          class="mr-8"
-          direction="vertical"
-          v-if="hasPermission(EditionConst.IS_EE, 'OR')"
-        />
-        <WorkspaceDropdown
-          v-if="hasPermission(EditionConst.IS_EE, 'OR')"
-          :data="user.workspace_list"
-          :currentWorkspace="currentWorkspace"
-          @changeWorkspace="changeWorkspace"
-        />
-      </div>
-      <TopMenu></TopMenu>
-      <TopAbout class="mr-12"></TopAbout>
-    </div>
-    <Avatar></Avatar>
-  </div>
+  <header class="workspace-bar">
+    <RouterLink class="workspace-brand" to="/" :aria-label="branding.name">
+      <LogoFull height="32px" />
+    </RouterLink>
+    <TopMenu class="workspace-nav" />
+    <div class="account"><Avatar /></div>
+  </header>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import TopMenu from './top-menu/index.vue'
 import Avatar from './avatar/index.vue'
-import TopAbout from './top-about/index.vue'
-import { EditionConst } from '@/utils/permission/data'
-import { hasPermission } from '@/utils/permission/index'
-import type { WorkspaceItem } from '@/api/type/workspace'
-import useStore from '@/stores'
-const router = useRouter()
-const route = useRoute()
-
-const { user } = useStore()
-const currentWorkspace = computed(() => {
-  return user.workspace_list.find((w) => w.id == user.workspace_id)
-})
-
-function changeWorkspace(item: WorkspaceItem) {
-  const {
-    meta: { activeMenu },
-  } = route as any
-  if (item.id === user.workspace_id) return
-  user.setWorkspaceId(item.id || 'default')
-  if (activeMenu.includes('application') && route.path != '/application') {
-    router.push('/application')
-  } else if (activeMenu.includes('knowledge') && route.path != '/knowledge') {
-    router.push('/knowledge')
-  } else {
-    window.location.reload()
-  }
-}
+import { branding } from '@/utils/branding'
 </script>
 <style lang="scss" scoped>
-.app-top-bar-container {
+.workspace-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(40px, 1fr);
+  align-items: center;
+  gap: 16px;
   height: var(--app-header-height);
   box-sizing: border-box;
   padding: var(--app-header-padding);
+}
+.workspace-brand {
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 8px;
+}
+.account {
+  justify-self: end;
+}
+@media (max-width: 820px) {
+  .workspace-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 45px 44px;
+    padding: 3px 14px 8px;
+    gap: 4px 8px;
+  }
+  .workspace-brand {
+    grid-area: 1 / 1;
+  }
+  .account {
+    grid-area: 1 / 2;
+  }
+  .workspace-nav {
+    grid-area: 2 / 1 / 3 / -1;
+    max-width: 100%;
+    justify-self: start;
+  }
 }
 </style>

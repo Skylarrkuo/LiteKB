@@ -31,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import './setup'
 import { computed } from 'vue'
 import { config } from 'md-editor-v3'
 import HtmlRander from './HtmlRander.vue'

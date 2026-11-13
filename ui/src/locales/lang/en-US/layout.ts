@@ -10,6 +10,12 @@ export default {
   crossSettings: 'Cross-Origin Settings',
   about: {
     title: 'About',
+    projectIntro: 'LiteKB is a lightweight, self-hosted RAG agent service. Products can use its API to manage knowledge and call agents. Teams can build workflows, debug conversations and inspect runs in the studio.',
+    maintainer: 'Fork maintainer',
+    repository: 'Project repository',
+    upstream: 'Upstream project',
+    credits: 'LiteKB builds on MaxKB Community Edition by FIT2CLOUD and its contributors. The fork retains the GNU GPL v3 license.',
+    license: 'GPL-3.0 license',
     expiredTime: 'Expiration Date',
     edition: {
       label: 'Edition',

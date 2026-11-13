@@ -2,21 +2,19 @@
 <html lang="">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="./favicon.ico" />
+    <base href="/admin/" data-chat-prefix="/chat" target="_blank" />
+    <link rel="icon" href="./litekb.svg" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0,  maximum-scale=1.0, minimum-scale=1.0, user-scalable=no,
   viewport-fit=cover"
     />
-    <base target="_blank" />
     <title>%VITE_APP_TITLE%</title>
     <script>
-      ;((prefix) => {
-        window.MaxKB = {
-          prefix: '/admin',
-          chatPrefix: '/chat',
-        }
-      })()
+      window.MaxKB = {
+        prefix: new URL(document.baseURI).pathname.replace(/\/$/, ''),
+        chatPrefix: document.querySelector('base').dataset.chatPrefix,
+      }
     </script>
   </head>
   <body>

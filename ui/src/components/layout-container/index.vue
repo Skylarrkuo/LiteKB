@@ -1,11 +1,30 @@
 <template>
-  <div class="layout-container flex h-full" :class="isCollapse ? 'layout-container__collapse' : ''">
+  <div
+    class="layout-container flex h-full"
+    :class="{
+      'layout-container__collapse': isCollapse,
+      'responsive-sidebar': showLeft && showCollapse,
+      'mobile-open': mobileOpen,
+    }"
+  >
+    <button
+      v-if="showLeft && showCollapse"
+      type="button"
+      class="mobile-sidebar-toggle"
+      :aria-expanded="mobileOpen"
+      :aria-controls="panelId"
+      @click="mobileOpen = !mobileOpen"
+    >
+      <el-icon aria-hidden="true"><Fold /></el-icon>
+      {{ navigationLabel || $t('studio.sidebar') }}
+      <el-icon class="disclosure" aria-hidden="true"><ArrowDown /></el-icon>
+    </button>
     <div
       :class="`layout-container__left border-r ${isCollapse ? 'hidden' : ''}`"
       :style="{ width: isCollapse ? 0 : `${leftWidth}px` }"
       v-if="showLeft"
     >
-      <div class="layout-container__left_content">
+      <div :id="panelId" class="layout-container__left_content">
         <slot name="left"></slot>
       </div>
       <el-tooltip
@@ -17,6 +36,9 @@
           class="collapse"
           size="small"
           circle
+          :aria-label="isCollapse ? $t('common.expand') : $t('common.collapse')"
+          :aria-expanded="!isCollapse"
+          :aria-controls="panelId"
           @click="isCollapse = !isCollapse"
           :icon="isCollapse ? 'ArrowRightBold' : 'ArrowLeftBold'"
         />
@@ -35,12 +57,13 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
+import { onUnmounted, ref, useId } from 'vue'
 defineOptions({ name: 'LayoutContainer' })
 
 const props = defineProps({
   showCollapse: Boolean,
   resizable: Boolean,
+  navigationLabel: String,
   minLeftWidth: {
     type: Number,
     default: 240,
@@ -56,6 +79,8 @@ const props = defineProps({
 })
 
 const isCollapse = ref(false)
+const mobileOpen = ref(false)
+const panelId = useId()
 const leftWidth = ref(props.minLeftWidth)
 const isResizing = ref(false)
 
@@ -94,11 +119,17 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .layout-container {
+  min-height: 0;
+  .mobile-sidebar-toggle {
+    display: none;
+  }
   &__left {
     position: relative;
     box-sizing: border-box;
     // transition: width 0.28s;
     width: var(--sidebar-width);
+    flex: none;
+    background: #f0f4f1;
     .splitter-bar-line {
       z-index: 1;
       position: absolute;
@@ -129,7 +160,7 @@ onUnmounted(() => {
 
     .layout-container__left_content {
       width: 100%;
-      // height: 100%;
+      height: 100%;
     }
 
     &.hidden {
@@ -148,11 +179,62 @@ onUnmounted(() => {
 
   &__right {
     flex: 1;
+    min-width: 0;
+    min-height: 0;
     overflow: hidden;
   }
   &__collapse {
     :deep(.mul-operation) {
       width: 100% !important;
+    }
+  }
+}
+@media (max-width: 760px) {
+  .responsive-sidebar {
+    flex-direction: column;
+    .mobile-sidebar-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px;
+      flex: 0 0 38px;
+      width: 100%;
+      border: 0;
+      border-bottom: 1px solid var(--studio-hairline);
+      color: var(--studio-ink);
+      background: #edf3ef;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      &:focus-visible {
+        outline-offset: -3px;
+      }
+      .disclosure {
+        margin-left: auto;
+      }
+    }
+    > .layout-container__left {
+      display: none;
+      width: 100% !important;
+      max-height: 35dvh;
+      overflow: auto;
+      border: 0;
+      border-bottom: 1px solid var(--studio-hairline);
+      .layout-container__left_content {
+        visibility: visible;
+      }
+      .collapse,
+      .splitter-bar-line {
+        display: none;
+      }
+    }
+    &.mobile-open {
+      > .layout-container__left {
+        display: block;
+      }
+      .disclosure {
+        transform: rotate(180deg);
+      }
     }
   }
 }

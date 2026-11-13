@@ -1,15 +1,11 @@
 <template>
   <el-dropdown trigger="click" placement="bottom-end">
-    <div class="flex-center cursor">
+    <button ref="accountButton" class="account-button" type="button" :aria-label="$t('studio.accountMenu')">
       <el-avatar :size="30">
         <img src="@/assets/user-icon.svg" style="width: 54%" alt="" />
       </el-avatar>
-      <!-- <span class="ml-8 color-text-primary ellipsis"
-            :title="user.userInfo?.nick_name">{{ user.userInfo?.nick_name }}</span>
-      <el-icon class="el-icon--right">
-        <CaretBottom/>
-      </el-icon> -->
-    </div>
+      <el-icon aria-hidden="true"><ArrowDown /></el-icon>
+    </button>
 
     <template #dropdown>
       <el-dropdown-menu class="avatar-dropdown">
@@ -34,25 +30,6 @@
           </div>
         </div>
         <el-dropdown-item
-          class="border-t"
-          @click="router.push({ path: `/system/user` })"
-          v-if="
-            hasPermission(
-              [
-                RoleConst.EXTENDS_ADMIN,
-                RoleConst.EXTENDS_WORKSPACE_MANAGE,
-                RoleConst.ADMIN,
-                RoleConst.WORKSPACE_MANAGE,
-              ],
-              'OR',
-            )
-          "
-        >
-          <div class="flex-between w-full">
-            {{ $t('views.system.title') }}
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item
           @click="openResetPassword"
           v-if="
             hasPermission(
@@ -68,25 +45,6 @@
         >
           {{ $t('views.login.resetPassword') }}
         </el-dropdown-item>
-        <div>
-          <el-dropdown-item
-            class="p-8"
-            @click="openAPIKeyDialog"
-            v-if="
-              hasPermission(
-                new ComplexPermission(
-                  [RoleConst.ADMIN, RoleConst.ADMIN, RoleConst.WORKSPACE_MANAGE, RoleConst.USER],
-                  [PermissionConst.SYSTEM_API_KEY_EDIT],
-                  [EditionConst.IS_EE, EditionConst.IS_PE],
-                  'OR',
-                ),
-                'OR',
-              )
-            "
-          >
-            {{ $t('layout.apiKey') }}
-          </el-dropdown-item>
-        </div>
         <el-dropdown-item
           style="padding: 0"
           @click.stop
@@ -135,7 +93,7 @@
           </el-dropdown>
         </el-dropdown-item>
         <el-dropdown-item
-          @click="openAbout"
+          @click="aboutVisible = true"
           v-if="
             hasPermission(
               new ComplexPermission(
@@ -157,9 +115,8 @@
       </el-dropdown-menu>
     </template>
   </el-dropdown>
-  <APIKeyDialog :user-id="user.userInfo?.id" ref="APIKeyDialogRef" />
   <ResetPassword ref="resetPasswordRef"></ResetPassword>
-  <AboutDialog ref="AboutDialogRef"></AboutDialog>
+  <AboutDialog v-model="aboutVisible" @closed="accountButton?.focus()" />
 
   <!-- <UserPwdDialog ref="UserPwdDialogRef" /> -->
 </template>
@@ -171,7 +128,6 @@ import { t } from '@/locales'
 import ResetPassword from './ResetPassword.vue'
 import AboutDialog from './AboutDialog.vue'
 // import UserPwdDialog from '@/views/user-manage/component/UserPwdDialog.vue'
-import APIKeyDialog from './APIKeyDialog.vue'
 import { ComplexPermission } from '@/utils/permission/type'
 import { langList } from '@/locales/index'
 import { hasPermission } from '@/utils/permission'
@@ -181,8 +137,8 @@ import { i18n_name } from '@/utils/common'
 const { user, login } = useStore()
 const router = useRouter()
 
-const AboutDialogRef = ref()
-const APIKeyDialogRef = ref()
+const aboutVisible = ref(false)
+const accountButton = ref<HTMLButtonElement>()
 const resetPasswordRef = ref<InstanceType<typeof ResetPassword>>()
 
 // const { changeLocale } = useLocale()
@@ -190,14 +146,6 @@ const changeLang = (lang: string) => {
   user.postUserLanguage(lang)
   // changeLocale(lang)
 }
-const openAbout = () => {
-  AboutDialogRef.value?.open()
-}
-
-function openAPIKeyDialog() {
-  APIKeyDialogRef.value.open()
-}
-
 const openResetPassword = () => {
   resetPasswordRef.value?.open()
 }
@@ -235,6 +183,19 @@ onMounted(() => {
 })
 </script>
 <style lang="scss" scoped>
+.account-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: 0;
+  border-radius: 24px;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--app-text-color-secondary);
+}
+.account-button:hover { background: var(--studio-selection); }
+.account-button .el-avatar { background: var(--studio-ink); }
 .avatar-dropdown {
   min-width: 210px;
   max-width: 400px;

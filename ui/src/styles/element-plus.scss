@@ -1,11 +1,22 @@
 :root {
-  --el-color-primary: #3370ff;
-  --el-color-success: #34c724;
-  --el-text-color-primary: #1f2329;
-  --el-text-color-primary-rgb: 31, 35, 41;
-  --el-border-radius-base: 6px;
+  --el-color-primary: #164b50;
+  --el-color-primary-rgb: 22, 75, 80;
+  --el-color-primary-light-3: #477576;
+  --el-color-primary-light-5: #83a3a0;
+  --el-color-primary-light-7: #b9ceca;
+  --el-color-primary-light-8: #d4e4df;
+  --el-color-primary-light-9: #eaf3ef;
+  --el-color-primary-dark-2: #103b40;
+  --el-color-success: #268459;
+  --el-text-color-primary: #192c2b;
+  --el-text-color-primary-rgb: 25, 44, 43;
+  --el-text-color-regular: #43534f;
+  --el-text-color-secondary: #5d6c67;
+  --el-border-radius-base: 9px;
   --el-menu-item-height: 45px;
-  --el-border-color: #dee0e3;
+  --el-border-color: #d6dfdb;
+  --el-border-color-light: #e1e8e4;
+  --el-border-color-lighter: #e9eeeb;
 }
 
 .el-avatar {
@@ -22,8 +33,8 @@
 // card
 .el-card {
   --el-card-padding: calc(var(--app-base-px) * 2);
-  --el-card-border-radius: 6px;
-  box-shadow: 0px 2px 4px 0px rgba(var(--el-text-color-primary-rgb), 0.12) !important;
+  --el-card-border-radius: 14px;
+  box-shadow: var(--studio-shadow) !important;
   --el-border-color-light: var(--el-border-color);
   overflow: visible;
   &.is-never-shadow {
@@ -77,9 +88,6 @@
   &:focus {
     background-color: none;
     border-color: none;
-  }
-  &:focus-visible {
-    outline: none !important;
   }
   &.is-link:focus {
     background: none;
@@ -239,8 +247,8 @@
 // dialog
 .el-dialog {
   --el-dialog-padding-primary: 24px;
-  --el-dialog-border-radius: 8px;
-  --el-dialog-title-font-size: 16px;
+  --el-dialog-border-radius: 18px;
+  --el-dialog-title-font-size: 18px;
   .el-dialog__body {
     color: var(--el-text-color-primary);
   }

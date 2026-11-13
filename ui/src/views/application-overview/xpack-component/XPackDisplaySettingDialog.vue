@@ -161,7 +161,7 @@
           />
           <img
             v-else
-            src="/MaxKB.gif"
+            :src="brandIcon"
             height="50px"
             style="width: 40px; height: 40px; display: block"
           />
@@ -461,6 +461,7 @@
   </el-dialog>
 </template>
 <script setup lang="ts">
+import { brandIcon } from '@/utils/branding'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import type { FormInstance, FormRules, UploadFiles } from 'element-plus'

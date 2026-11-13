@@ -3,7 +3,7 @@ import { t } from '@/locales'
 export const themeList = [
   {
     label: t('theme.default'),
-    value: '#3370FF',
+    value: '#164B50',
     loginBackground: 'default',
   },
   {
@@ -37,7 +37,7 @@ export const defaultSetting = {
   icon: '',
   loginLogo: '',
   loginImage: '',
-  title: 'MaxKB',
+  title: 'LiteKB',
   slogan: t('theme.defaultSlogan'),
 }
 

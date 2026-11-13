@@ -3723,7 +3723,7 @@ msgstr "指定模型可以生成的最大 tokens 數"
 #: apps/models_provider/impl/anthropic_model_provider/credential/image.py:15
 #: apps/models_provider/impl/anthropic_model_provider/credential/llm.py:74
 msgid "API URL"
-msgstr ""
+msgstr "API 位址"
 
 #: apps/models_provider/impl/aliyun_bai_lian_model_provider/credential/tti.py:20
 #: apps/models_provider/impl/azure_model_provider/credential/tti.py:15
@@ -6611,8 +6611,8 @@ msgstr "獲取郵箱設置"
 
 #: apps/system_manage/views/system_profile.py:22
 #: apps/system_manage/views/system_profile.py:23
-msgid "Get MaxKB related information"
-msgstr "獲取 MaxKB 相關信息"
+msgid "Get LiteKB related information"
+msgstr "獲取 LiteKB 相關信息"
 
 #: apps/system_manage/views/system_profile.py:25
 msgid "System parameters"
@@ -9676,3 +9676,87 @@ msgstr "寬和高必須在 [512, 2048] 之間，且面積不得超過 1024x1024�
 #: apps/models_provider/impl/tencent_model_provider/credential/embedding.py
 msgid "api_key is required"
 msgstr "api_key 必填"
+
+msgid "Thinking"
+msgstr "思考模式"
+
+msgid "Thinking mode"
+msgstr "思考模式"
+
+msgid "Reasoning effort"
+msgstr "推理強度"
+
+msgid "Dimensions"
+msgstr "向量維度"
+
+msgid "Max output tokens"
+msgstr "最大輸出 Token 數"
+
+msgid "Maximum output tokens"
+msgstr "最大輸出 Token 數"
+
+msgid "Maximum reasoning tokens"
+msgstr "最大推理 Token 數"
+
+msgid "Random seed"
+msgstr "隨機種子"
+
+msgid "Voice"
+msgstr "音色"
+
+msgid "Voice description"
+msgstr "音色描述"
+
+msgid "Temperature [0, 2)"
+msgstr "溫度 [0, 2)"
+
+msgid "Nucleus sampling (top_p)"
+msgstr "核取樣（top_p）"
+
+msgid "Candidate tokens (top_k)"
+msgstr "候選 Token 數（top_k）"
+
+msgid "Use DashScope query embeddings"
+msgstr "使用百煉查詢專用向量"
+
+msgid "Query retrieval instruction (English)"
+msgstr "查詢檢索指令（英文）"
+
+msgid "Tool debugging requires an isolated Linux runtime. You can save parameters on this host."
+msgstr "工具除錯需要已啟用沙箱的 Linux 執行環境。目前主機可儲存參數。"
+
+msgid "Enable the isolated tool runtime to debug this tool."
+msgstr "請啟用工具沙箱後再除錯。"
+
+msgid "The isolated tool runtime library is missing."
+msgstr "工具沙箱缺少執行函式庫。"
+
+msgid "The isolated tool runtime account is unavailable."
+msgstr "工具沙箱的專用執行帳號無法使用。"
+
+msgid "Use this skill through an agent that supports skills."
+msgstr "請在支援技能的智慧體中使用此技能套件。"
+
+msgid "Test this data source in a data-source workflow node."
+msgstr "請在資料來源工作流節點中測試此工具。"
+
+msgid "This tool type does not support independent debugging."
+msgstr "此工具類型不支援獨立除錯。"
+
+msgid "Set the required initialization parameter: {name}"
+msgstr "請填寫必填的啟動參數 {name}。"
+
+msgid "Submit only the runtime input fields."
+msgstr "請僅提交執行時輸入參數。"
+
+msgid "Use the debug action for this tool type."
+msgstr "請使用此工具類型對應的除錯入口。"
+
+msgid "Unknown or duplicate runtime input field."
+msgstr "執行時輸入參數未知或重複。"
+
+msgid "Publish the workflow before enabling this tool."
+msgstr "請先發佈工具工作流，再啟用工具。"
+
+msgid "Debug a saved tool"
+msgstr "除錯已儲存的工具"

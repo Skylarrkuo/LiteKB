@@ -11,23 +11,34 @@ import {
 } from 'vue-router'
 import useStore from '@/stores'
 import { routes } from '@/router/routes'
-NProgress.configure({ showSpinner: false, speed: 500, minimum: 0.3 })
+NProgress.configure({ showSpinner: false, speed: 180, minimum: 0.2 })
 const router = createRouter({
   history: createWebHistory(window.MaxKB?.prefix ? window.MaxKB?.prefix : import.meta.env.BASE_URL),
   routes: routes,
 })
 
+let pendingRoute: RouteLocationNormalized | undefined
+let progressDelay: number | undefined
+function finishProgress(to: RouteLocationNormalized) {
+  if (to !== pendingRoute) return
+  window.clearTimeout(progressDelay)
+  pendingRoute = undefined
+  NProgress.done()
+}
+
 // 路由前置拦截器
 router.beforeEach(
   async (to: RouteLocationNormalized, from: RouteLocationNormalized, next: NavigationGuardNext) => {
-    NProgress.start()
+    window.clearTimeout(progressDelay)
+    pendingRoute = to
+    if (!NProgress.isStarted()) progressDelay = window.setTimeout(() => NProgress.start(), 160)
     if (to.name === '404') {
       next()
       return
     }
     const { user, login } = useStore()
 
-    const notAuthRouteNameList = ['login', 'ForgotPassword', 'ResetPassword', 'Chat', 'UserLogin']
+    const notAuthRouteNameList = ['login', 'ForgotPassword', 'ResetPassword']
     if (!notAuthRouteNameList.includes(to.name ? to.name.toString() : '')) {
       if (to.query && to.query.token) {
         localStorage.setItem('token', to.query.token.toString())
@@ -64,9 +75,8 @@ router.beforeEach(
     }
   },
 )
-router.afterEach(() => {
-  NProgress.done()
-})
+router.afterEach(finishProgress)
+router.onError((_error, to) => finishProgress(to))
 export const getChildRouteListByPathAndName = (path: any, name?: RouteRecordName | any) => {
   return getChildRouteList(routes, path, name)
 }

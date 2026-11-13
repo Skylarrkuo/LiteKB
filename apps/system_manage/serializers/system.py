@@ -16,6 +16,7 @@ from common.constants.cache_version import Cache_Version
 from common.database_model_manage.database_model_manage import DatabaseModelManage
 from common.utils.rsa_util import get_key_pair_by_sql
 from maxkb import settings
+from maxkb.const import VERSION
 from system_manage.models import SystemSetting
 
 
@@ -37,7 +38,7 @@ class SystemProfileResponseSerializer(serializers.Serializer):
 class SystemProfileSerializer(serializers.Serializer):
     @staticmethod
     def profile():
-        version = os.environ.get('MAXKB_VERSION')
+        version = os.environ.get('MAXKB_VERSION') or VERSION
         license_is_valid = DatabaseModelManage.get_model('license_is_valid') or (lambda: False)
         return {'version': version, 'edition': settings.edition,
                 'license_is_valid': license_is_valid() if license_is_valid() is not None else False,

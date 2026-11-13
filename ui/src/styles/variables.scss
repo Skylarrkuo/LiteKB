@@ -1,23 +1,28 @@
 :root {
   --app-base-px: 8px;
-  --app-layout-bg-color: #f5f6f7;
-  --app-text-color-secondary: #646a73;
+  --studio-ink: #164b50;
+  --studio-mint: #83e4bb;
+  --studio-selection: #e1f2ea;
+  --studio-hairline: #dce4e1;
+  --studio-shadow: 0 1px 2px rgb(15 44 39 / 4%), 0 5px 20px rgb(15 44 39 / 4%);
+  --app-layout-bg-color: #f5f7f6;
+  --app-text-color-secondary: #586760;
   --app-text-color-disable: #bbbfc4;
   --app-input-color-placeholder: #8f959e;
   --app-view-padding: 24px;
   --app-view-bg-color: #ffffff;
   --app-border-color-dark: #bbbfc4;
   --app-border-radius-small: 6px;
-  --app-border-radius-base: 8px;
+  --app-border-radius-base: 10px;
   --app-border-radius-large: 16px;
   --md-bk-hover-color: var(--el-border-color-hover);
   /** header 组件 */
-  --app-header-height: 56px;
-  --app-header-padding: 0 20px;
+  --app-header-height: 64px;
+  --app-header-padding: 0 clamp(16px, 2.5vw, 40px);
 
-  --app-header-bg-color: linear-gradient(90deg, #ebf1ff 24.34%, #e5fbf8 56.18%, #f2ebfe 90.18%);
-  --app-logo-color: linear-gradient(180deg, #3370ff 0%, #7f3bf5 100%);
-  --app-avatar-gradient-color: linear-gradient(270deg, #9258f7 0%, #3370ff 100%);
+  --app-header-bg-color: #f9fbfa;
+  --app-logo-color: var(--studio-ink);
+  --app-avatar-gradient-color: var(--studio-ink);
 
   /* 计算高度 */
   --app-main-height: calc(100vh - var(--app-header-height) - var(--app-view-padding) * 2 - 40px);

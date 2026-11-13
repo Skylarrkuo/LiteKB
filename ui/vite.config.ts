@@ -108,6 +108,9 @@ export default defineConfig((conf: any) => {
     },
     resolve: {
       alias: {
+        '@litekb-media-nodes': path.resolve(__dirname, 'src/workflow',
+          (process.env.VITE_LITEKB_MEDIA_NODES ?? ENV.VITE_LITEKB_MEDIA_NODES) === '1'
+            ? 'media-enabled.ts' : 'media-disabled.ts'),
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },

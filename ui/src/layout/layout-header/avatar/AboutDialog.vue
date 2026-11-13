@@ -1,176 +1,65 @@
 <template>
   <el-dialog
-    v-model="aboutDialogVisible"
-    class="about-dialog border-r-6"
-    :class="!isDefaultTheme ? 'dialog-custom-header' : ''"
+    v-model="visible"
+    append-to-body
+    align-center
+    :title="$t('layout.about.title')"
+    class="about-project-dialog"
+    width="min(510px, calc(100vw - 28px))"
+    @opened="heading?.focus({ preventScroll: true })"
+    @closed="emit('closed')"
   >
     <template #header="{ titleId, titleClass }">
-      <div class="logo flex-center" :id="titleId" :class="titleClass">
-        <LogoFull height="59px"/>
-      </div>
+      <h2 :id="titleId" ref="heading" :class="titleClass" tabindex="-1">{{ $t('layout.about.title') }}</h2>
     </template>
-    <div class="about-ui" v-loading="loading">
-      <div class="flex">
-        <span class="label">{{ $t('layout.about.authorize') }}</span
-        ><span>{{ licenseInfo?.corporation || '-' }}</span>
+    <div class="about-project">
+      <div class="project-brand">
+        <LogoFull height="34px" />
+        <span v-if="user.version" class="version">{{ $t('layout.about.version') }} {{ user.version }}</span>
       </div>
-      <div class="flex">
-        <span class="label">{{ $t('layout.about.expiredTime') }}</span>
-        <span
-        >{{ licenseInfo?.expired || '-' }}
-          <span class="color-danger"
-                v-if="licenseInfo?.expired && fromNowDate(licenseInfo?.expired)"
-          >（{{ fromNowDate(licenseInfo?.expired) }}）</span>
-        </span
-        >
-      </div>
-      <div class="flex">
-        <span class="label">{{ $t('layout.about.edition.label') }}</span>
-        <span>{{
-            editionText
-          }}</span>
-      </div>
-      <div class="flex">
-        <span class="label">{{ $t('layout.about.version') }}</span
-        ><span>{{ user.version }}</span>
-      </div>
-      <div class="flex">
-        <span class="label">{{ $t('layout.about.serialNo') }}</span
-        ><span>{{ licenseInfo?.serialNo || '-' }}</span>
-      </div>
-      <div class="flex">
-        <span class="label">{{ $t('layout.about.remark') }}</span
-        ><span>{{ licenseInfo?.remark || '-' }}</span>
-      </div>
-      <div class="mt-16 flex align-center" v-if="user.showXpack()">
-        <el-upload
-          ref="uploadRef"
-          action="#"
-          :auto-upload="false"
-          :show-file-list="false"
-          :on-change="onChange"
-          v-if="hasPermission([
-            RoleConst.ADMIN,
-            PermissionConst.ABOUT_UPDATE
-          ],'OR')"
-        >
-          <el-button class="border-primary mr-16"
-          >{{ $t('layout.about.update') }} License
-          </el-button
-          >
-        </el-upload>
-      </div>
-    </div>
-    <div class="border-t text-center mt-16 p-16 pb-0">
-      <el-text type="info">{{ $t('layout.copyright') }}</el-text>
+      <p>{{ $t('layout.about.projectIntro') }}</p>
+      <dl class="project-links">
+        <div>
+          <dt>{{ $t('layout.about.maintainer') }}</dt>
+          <dd>Skylarrkuo</dd>
+        </div>
+        <div>
+          <dt>{{ $t('layout.about.repository') }}</dt>
+          <dd><a href="https://github.com/Skylarrkuo/LiteKB" target="_blank" rel="noopener noreferrer">Skylarrkuo/LiteKB <el-icon aria-hidden="true"><TopRight /></el-icon></a></dd>
+        </div>
+      </dl>
+      <section class="upstream">
+        <h3>{{ $t('layout.about.upstream') }}</h3>
+        <p>{{ $t('layout.about.credits') }}</p>
+        <div class="source-links">
+          <a href="https://github.com/1Panel-dev/MaxKB" target="_blank" rel="noopener noreferrer">1Panel-dev/MaxKB <el-icon aria-hidden="true"><TopRight /></el-icon></a>
+          <a href="https://github.com/Skylarrkuo/LiteKB/blob/HEAD/LICENSE" target="_blank" rel="noopener noreferrer">{{ $t('layout.about.license') }} <el-icon aria-hidden="true"><TopRight /></el-icon></a>
+        </div>
+      </section>
     </div>
   </el-dialog>
 </template>
 <script setup lang="ts">
-import {ref, computed, watch} from 'vue'
-import licenseApi from '@/api/system/license'
-import {fromNowDate} from '@/utils/time'
-import {Role} from '@/utils/permission/type'
+import { ref } from 'vue'
 import useStore from '@/stores'
-import { t } from '@/locales'
-import { hasPermission } from '@/utils/permission'
-import { PermissionConst, RoleConst } from '@/utils/permission/data'
-const {user, theme} = useStore()
-const isDefaultTheme = computed(() => {
-  return theme.isDefaultTheme()
-})
-
-const aboutDialogVisible = ref(false)
-const loading = ref(false)
-const licenseInfo = ref<any>(null)
-const isUpdate = ref(false)
-
-watch(aboutDialogVisible, (bool) => {
-  if (!bool) {
-    if (isUpdate.value) {
-      window.location.reload()
-    }
-    isUpdate.value = false
-  }
-})
-const open = () => {
-  if (user.showXpack()) {
-    getLicenseInfo()
-  }
-
-  aboutDialogVisible.value = true
-}
-
-
-const onChange = (file: any) => {
-  const fd = new FormData()
-  fd.append('license_file', file.raw)
-  licenseApi.putLicense(fd, loading).then((res: any) => {
-    getLicenseInfo()
-    isUpdate.value = true
-  })
-}
-
-const editionText = computed(() => {
-  if (!user) return '-'
-  if (user.getEditionName() === 'PE') {
-    return t('layout.about.edition.professional')
-  } else if (user.getEditionName() === 'EE') {
-    return t('layout.about.edition.enterprise')
-  } else {
-    return t('layout.about.edition.community')
-  }
-})
-function getLicenseInfo() {
-  licenseApi.getLicense(loading).then((res: any) => {
-    licenseInfo.value = res.data?.license
-  })
-}
-
-defineExpose({open})
+const visible = defineModel<boolean>({ required: true })
+const emit = defineEmits<{ closed: [] }>()
+const heading = ref<HTMLHeadingElement>()
+const { user } = useStore()
 </script>
-<style lang="scss" scope>
-.about-dialog {
-  padding: 0 0 24px 0;
-  width: 620px;
-  font-weight: 400;
-
-  .el-dialog__header {
-    background: var(--app-header-bg-color);
-    margin-right: 0;
-    height: 140px;
-    box-sizing: border-box;
-    border-radius: 4px 4px 0 0;
-
-    &.show-close {
-      padding-right: 0;
-    }
-  }
-
-  .el-dialog__title {
-    height: 140px;
-    box-sizing: border-box;
-  }
-
-  .about-ui {
-    margin: 0 auto;
-    font-weight: 400;
-    font-size: 14px;
-    margin-top: 24px;
-    line-height: 36px;
-    padding: 0 40px;
-
-    .label {
-      width: 150px;
-      text-align: left;
-      color: var(--app-text-color-secondary);
-    }
-  }
-
-  &.dialog-custom-header {
-    .el-dialog__header {
-      background: var(--el-color-primary-light-9) !important;
-    }
-  }
-}
+<style scoped>
+.about-project { display: grid; gap: 16px; overflow-wrap: anywhere; }
+.project-brand, .source-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.version { color: var(--app-text-color-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.about-project p { margin: 0; line-height: 1.65; }
+.project-links { margin: 0; padding: 4px 14px; border-radius: var(--app-border-radius-base); background: var(--app-layout-bg-color); }
+.project-links > div { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1.6fr); gap: 12px; align-items: baseline; padding-block: 9px; }
+.project-links > div + div { border-top: 1px solid var(--studio-hairline); }
+.project-links dt { color: var(--app-text-color-secondary); }
+.project-links dd { margin: 0; font-weight: 600; }
+.upstream h3 { margin-bottom: 4px; font-size: 15px; color: var(--studio-ink); }
+.source-links { margin-top: 8px; }
+.about-project a { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; color: var(--studio-ink); text-decoration: underline; text-underline-offset: 3px; }
+.about-project a:hover { text-decoration-thickness: 2px; }
+:global(.el-dialog.about-project-dialog) { max-height: calc(100dvh - 28px); overflow-y: auto; }
 </style>

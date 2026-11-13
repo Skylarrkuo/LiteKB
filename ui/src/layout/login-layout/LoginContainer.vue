@@ -24,8 +24,8 @@ defineProps({
 <style lang="scss" scoped>
 .login-form-container {
   width: 480px;
-
-
+  max-width: 100%;
+  box-sizing: border-box;
   .login-title {
     margin-bottom: 32px;
     .sub-title {
@@ -34,6 +34,10 @@ defineProps({
   }
   .login-card {
     padding: 18px;
+  }
+  @media (max-width: 550px) {
+    padding: 16px;
+    .login-card { padding: 4px; }
   }
 }
 </style>

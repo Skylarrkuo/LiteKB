@@ -1,11 +1,13 @@
 from django.urls import path
 
 from . import views
+from .views.branding import BrandingView
 
 app_name = "system_manage"
 # @formatter:off
 # fmt: off
 urlpatterns = [
+    path('branding', BrandingView.as_view()),
     path('workspace/<str:workspace_id>/user_resource_permission/user/<str:user_id>/resource/<str:resource>', views.WorkSpaceUserResourcePermissionView.as_view()),
     path('workspace/<str:workspace_id>/user_resource_permission/user/<str:user_id>/resource/<str:resource>/<int:current_page>/<int:page_size>', views.WorkSpaceUserResourcePermissionView.Page.as_view()),
     path('workspace/<str:workspace_id>/resource_user_permission/resource/<str:target>/resource/<str:resource>', views.WorkspaceResourceUserPermissionView.as_view()),

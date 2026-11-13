@@ -19,6 +19,7 @@ class SettingType(models.IntegerChoices):
     RSA = 1, "私钥秘钥"
 
     LOG = 2, "日志清理时间"
+    BRANDING = 3, "品牌"
 
 
 class SystemSetting(AppModelMixin):

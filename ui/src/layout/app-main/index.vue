@@ -1,24 +1,28 @@
 <template>
-  <router-view v-slot="{ Component }">
-    <transition appear name="fade-transform" mode="out-in">
+  <div class="studio-main-content">
+    <router-view v-slot="{ Component }">
       <keep-alive :include="cachedViews">
-        <component :is="Component" :key="route.path" />
+        <component :is="Component" :key="viewKey" />
       </keep-alive>
-    </transition>
-  </router-view>
+    </router-view>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeUpdate } from 'vue'
+import { computed, ref, onBeforeUpdate } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+const viewKey = computed(() => route.matched.some(record => record.name === 'settings') ? 'settings' : route.path)
 
 const cachedViews: any = ref([])
 onBeforeUpdate(() => {
-  const { name, meta } = route
+  const { name } = route
   if (name && !cachedViews.value.includes(name)) {
     cachedViews.value.push(name)
   }
 })
 </script>
+<style scoped>
+.studio-main-content { height: 100%; min-width: 0; }
+</style>

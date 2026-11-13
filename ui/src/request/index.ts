@@ -338,11 +338,13 @@ export const exportFile: (
   url: string,
   params: any,
   loading?: NProgress | Ref<boolean>,
+  options?: { inlineErrors?: boolean },
 ) => Promise<any> = (
   fileName: string,
   url: string,
   params: any,
   loading?: NProgress | Ref<boolean>,
+  options = {},
 ) => {
   return promise(
     request({
@@ -353,7 +355,8 @@ export const exportFile: (
       transformResponse: [
         function (data, headers) {
           // 在这里可以访问 headers
-          if (data.type === 'application/json') {
+          if (data.type?.split(';')[0] === 'application/json') {
+            if (options.inlineErrors) throw new Error('Download failed')
             data.text().then((text: string) => {
               try {
                 const json = JSON.parse(text)
@@ -390,7 +393,7 @@ export const exportFile: (
       }
       return true
     })
-    .catch(() => {})
+    .catch(() => false)
 }
 
 export const exportExcelPost: (

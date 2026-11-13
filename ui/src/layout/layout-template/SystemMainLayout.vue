@@ -12,7 +12,7 @@
       <SystemHeader />
     </div>
     <div class="app-main" :class="user.isExpire() ? 'isExpire' : ''">
-      <layout-container>
+      <layout-container showCollapse>
         <template #left>
           <Sidebar />
         </template>

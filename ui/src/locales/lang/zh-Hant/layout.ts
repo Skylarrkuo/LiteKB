@@ -10,6 +10,12 @@ export default {
   crossSettings: '跨域設定',
   about: {
     title: '關於',
+    projectIntro: 'LiteKB 是可獨立部署的輕量 RAG Agent 服務。產品可透過 API 存取知識庫與智能體，團隊也能在控制台編排工作流程、偵錯對話及檢視執行軌跡。',
+    maintainer: '二次開發與維護',
+    repository: '專案儲存庫',
+    upstream: '上游開源專案',
+    credits: 'LiteKB 衍生自飛致雲（FIT2CLOUD）與社群貢獻者開發的 MaxKB 社群版，沿用 GNU GPL v3 授權。',
+    license: 'GPL-3.0 授權條款',
     expiredTime: '到期時間',
     edition: {
       label: '版本',

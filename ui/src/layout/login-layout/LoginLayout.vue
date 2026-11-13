@@ -3,7 +3,7 @@
     <div class="login-container w-full h-full">
       <el-row class="container w-full h-full">
         <el-col :xs="0" :sm="0" :md="10" :lg="10" :xl="10" class="left-container">
-          <div class="login-image" :style="{ backgroundImage: `url(${loginImage})` }"></div>
+          <div class="login-image" aria-hidden="true"><img :src="brandIcon" alt="" /></div>
         </el-col>
         <el-col :xs="24" :sm="24" :md="14" :lg="14" :xl="14" class="right-container flex-center">
           <el-dropdown trigger="click" type="primary" class="lang" v-if="lang">
@@ -41,7 +41,7 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getThemeImg } from '@/utils/theme'
+import { brandIcon } from '@/utils/branding'
 import useStore from '@/stores'
 import { useLocalStorage } from '@vueuse/core'
 import { langList, localeConfigKey, getBrowserLang } from '@/locales/index'
@@ -51,7 +51,7 @@ defineProps({
     default: true,
   },
 })
-const { user, theme } = useStore()
+const { user } = useStore()
 
 const changeLang = (lang: string) => {
   useLocalStorage(localeConfigKey, getBrowserLang()).value = lang
@@ -62,37 +62,19 @@ const currentLanguage = computed(() => {
   return langList.value?.filter((v: any) => v.value === user.getLanguage())?.[0]?.label
 })
 
-const fileURL = computed(() => {
-  if (theme.themeInfo?.loginImage) {
-    if (typeof theme.themeInfo?.loginImage === 'string') {
-      return theme.themeInfo?.loginImage
-    } else {
-      return URL.createObjectURL(theme.themeInfo?.loginImage)
-    }
-  } else {
-    return ''
-  }
-})
-
-const loginImage = computed(() => {
-  if (theme.themeInfo?.loginImage) {
-    return `${fileURL.value}`
-  } else {
-    const imgName = getThemeImg(theme.themeInfo?.theme)
-    const imgPath = `${window.MaxKB.prefix}/theme/${imgName}.jpg`
-    const imageUrl = new URL(imgPath, import.meta.url).href
-    return imageUrl
-  }
-})
 </script>
 <style lang="scss" scoped>
 .login-warp {
   height: 100vh;
 
   .login-image {
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: cover;
+    display: grid;
+    place-items: center;
+    background-color: #ecf4ef;
+    background-image: radial-gradient(circle, #b8d3c7 1px, transparent 1.2px);
+    background-size: 18px 18px;
+    img { width: min(42%, 220px); aspect-ratio: 1; object-fit: contain; }
+
     width: 100%;
     height: 100%;
   }

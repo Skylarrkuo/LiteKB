@@ -1,49 +1,22 @@
 import type { RouteRecordRaw } from 'vue-router'
-import { PermissionConst, RoleConst } from '@/utils/permission/data'
-
-const modules: any = import.meta.glob('./modules/*.ts', { eager: true })
-
-const rolesRoutes: RouteRecordRaw[] = [...Object.keys(modules).map((key) => modules[key].default)]
+import application from './modules/application'
+import knowledge from './modules/knowledge'
+import tool from './modules/tool'
+import system from './modules/system'
+import runs from './modules/runs'
+import documentRoutes from './modules/document'
+import paragraph from './modules/paragraph'
+import detail from './modules/application-detail'
 
 export const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
     name: 'root',
-    redirect: '/home',
+    redirect: '/application',
     children: [
-      ...rolesRoutes,
-      {
-        path: '/home',
-        name: 'home',
-        redirect: '/home',
-        meta: {
-          title: 'home.title',
-          menu: true,
-          order: 1,
-          icon: 'app-home',
-          iconActive: 'app-home-active',
-          group: 'workspace',
-          permission: [
-            RoleConst.USER.getWorkspaceRole,
-            RoleConst.WORKSPACE_MANAGE.getWorkspaceRole,
-            PermissionConst.HOMEPAGE_READ.getWorkspacePermissionWorkspaceManageRole,
-            PermissionConst.HOMEPAGE_READ.getWorkspacePermission,
-          ],
-        },
-        children: [
-          {
-            path: '/home',
-            name: 'home-index',
-            meta: {
-              title: 'home.title',
-              activeMenu: '/home',
-              sameRoute: 'home',
-            },
-            component: () => import('@/views/home/index.vue'),
-          },
-        ],
-        component: () => import('@/layout/layout-template/SimpleLayout.vue'),
-      },
+      application, knowledge, tool, runs, system, documentRoutes, paragraph, detail,
+      { path: '/home', name: 'home', redirect: '/application' },
+      { path: '/model', redirect: '/settings/models' },
       {
         path: '/no-permission',
         name: 'noPermission',
@@ -82,25 +55,6 @@ export const routes: Array<RouteRecordRaw> = [
     meta: { activeMenu: '/tool' },
     component: () => import('@/views/tool-workflow/index.vue'),
   },
-  // 对话
-  {
-    path: '/chat/:accessToken',
-    name: 'Chat',
-    component: () => import('@/views/chat/index.vue'),
-  },
-  {
-    path: '/demo',
-    name: 'demo',
-    component: () => import('@/views/demo/index.vue'),
-  },
-
-  // 对话用户登录
-  {
-    path: '/user-login/:accessToken',
-    name: 'UserLogin',
-    component: () => import('@/views/chat/user-login/index.vue'),
-  },
-
   {
     path: '/login',
     name: 'login',
