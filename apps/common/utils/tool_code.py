@@ -5,15 +5,14 @@ import getpass
 import gzip
 import json
 import os
-import pwd
 import random
-import resource
 import socket
 import subprocess
 import sys
 import tempfile
 import time
 from contextlib import contextmanager, suppress
+from pathlib import Path
 from textwrap import dedent
 
 import uuid_utils.compat as uuid
@@ -21,6 +20,7 @@ from django.utils.translation import gettext_lazy as _
 from maxkb.const import BASE_DIR, CONFIG, PROJECT_DIR
 
 from common.mcp.config import InternalMCPConfig, validate_mcp_servers
+from common.mcp.sandbox import prepare_tool_execution
 from common.utils.logger import maxkb_logger
 
 _enable_sandbox = bool(int(CONFIG.get("SANDBOX", 1)))
@@ -46,18 +46,27 @@ class ToolExecutor:
 
     @staticmethod
     def init_sandbox_dir():
-        if not _enable_sandbox:
-            # 不启用sandbox就不初始化目录
+        if not sys.platform.startswith("linux") or not _enable_sandbox:
             return
-        try:
-            # 只初始化一次
-            fd = os.open(
-                os.path.join(PROJECT_DIR, "tmp", "tool_executor_init_dir.lock"), os.O_CREAT | os.O_EXCL | os.O_WRONLY
-            )
-            os.close(fd)
-        except FileExistsError:
-            # 文件已存在 → 已初始化过
-            return
+        import fcntl
+
+        library = Path(_sandbox_path) / "lib" / "sandbox.so"
+        if not library.is_file():
+            raise ValueError("Sandbox library is missing")
+        state_dir = Path(PROJECT_DIR) / "tmp"
+        state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with (state_dir / "tool_executor_init_dir.lock").open("a+b") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            lock.seek(0)
+            if lock.read() == b"ready" and library.with_name(".sandbox.conf").is_file():
+                return
+            ToolExecutor._write_sandbox_config()
+            lock.seek(0)
+            lock.truncate()
+            lock.write(b"ready")
+
+    @staticmethod
+    def _write_sandbox_config():
         maxkb_logger.info("Init sandbox dir.")
         try:
             os.system("chmod -R g-rwx /dev/shm /dev/mqueue")
@@ -96,14 +105,12 @@ class ToolExecutor:
             f.write(f"SANDBOX_PYTHON_ALLOW_DL_OPEN={allow_dl_open}\n")
             f.write(f"SANDBOX_PYTHON_ALLOW_SUBPROCESS={allow_subprocess}\n")
             f.write(f"SANDBOX_PYTHON_ALLOW_SYSCALL={allow_syscall}\n")
-        os.system(f"chmod -R 550 {_sandbox_path}")
-
-    try:
-        init_sandbox_dir()
-    except Exception as e:
-        maxkb_logger.error(f"Exception: {e}", exc_info=True)
+        subprocess.run(["chmod", "-R", "550", _sandbox_path], check=True)
 
     def exec_code(self, code_str, keywords, function_name=None):
+        prepare_tool_execution()
+        import pwd
+
         _id = str(uuid.uuid7())
         action_function = (
             f"({function_name!a}, locals_v.get({function_name!a}))" if function_name else "locals_v.popitem()"
@@ -140,7 +147,7 @@ except Exception as e:
 sys.stdout.write("\\n" + _id + "__END__\\n")
 sys.stdout.flush()
 """
-        maxkb_logger.debug(f"Tool execution({_id}) execute code: {_exec_code}")
+        maxkb_logger.debug("Starting isolated tool execution %s", _id)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=True) as f:
             f.write(_exec_code)
             f.flush()
@@ -309,6 +316,9 @@ sys.stdout.flush()
         return "\n".join(code_parts)
 
     def generate_mcp_server_code(self, code_str, params, name, description, tool_id):
+        prepare_tool_execution()
+        import pwd
+
         code = self._generate_mcp_server_code(code_str, params, name, description, tool_id)
         set_run_user = (
             f"os.setgid({pwd.getpwnam(_run_user).pw_gid});os.setuid({pwd.getpwnam(_run_user).pw_uid});"
@@ -390,6 +400,9 @@ exec({dedent(code)!a})
         return None
 
     def _exec(self, execute_file, _id):
+        prepare_tool_execution()
+        import resource
+
         kwargs = {
             "cwd": BASE_DIR,
             "env": {

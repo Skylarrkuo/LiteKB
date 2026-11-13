@@ -1,22 +1,27 @@
 <template>
   <el-dialog
+    class="tool-editor-dialog tool-init-dialog"
+    width="580px"
+    align-center
     :title="isEdit ? $t('common.param.editParam') : $t('common.param.addParam')"
     v-model="dialogVisible"
     :close-on-click-modal="false"
-    :close-on-press-escape="false"
     :destroy-on-close="true"
     :before-close="close"
     append-to-body
   >
     <DynamicsFormConstructor
-      v-model="currentRow"
+      :model-value="currentRow"
       label-position="top"
       require-asterisk-position="right"
       :input_type_list="inputTypeList"
       ref="DynamicsFormConstructorRef"
     ></DynamicsFormConstructor>
+    <p class="tool-form-error" role="alert" v-if="duplicate">
+      {{ $t('workflow.nodes.variableAggregationNode.group.dupError') }}
+    </p>
     <template #footer>
-      <span class="dialog-footer">
+      <span class="tool-editor-actions">
         <el-button @click.prevent="close"> {{ $t('common.cancel') }} </el-button>
         <el-button type="primary" @click="submit()" :loading="loading">
           {{ isEdit ? $t('common.save') : $t('common.add') }}
@@ -27,19 +32,20 @@
 </template>
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, get } from 'lodash'
 import DynamicsFormConstructor from '@/components/dynamics-form/constructor/index.vue'
-import type { FormField } from '@/components/dynamics-form/type'
-import _ from 'lodash'
+import '../tool-form.scss'
 import { t } from '@/locales'
 const emit = defineEmits(['refresh'])
 
 const DynamicsFormConstructorRef = ref()
-const loading = ref<boolean>(false)
+const loading = ref(false)
+const duplicate = ref(false)
+const usedNames = ref<string[]>([])
 const isEdit = ref(false)
-const currentItem = ref<FormField | any>()
+const currentItem = ref<Record<string, any>>()
 const check_field = (field_list: Array<string>, obj: any) => {
-  return field_list.every((field) => _.get(obj, field, undefined) !== undefined)
+  return field_list.every((field) => get(obj, field, undefined) !== undefined)
 }
 const currentRow = computed(() => {
   if (currentItem.value) {
@@ -75,7 +81,7 @@ const currentRow = computed(() => {
           required: row.required != undefined ? row.required : row.is_required,
           option_list: row.option_list
             ? row.option_list
-            : row.optionList.map((o: any) => {
+            : (row.optionList ?? []).map((o: any) => {
                 return { key: o, value: o }
               }),
         }
@@ -121,7 +127,7 @@ const currentRow = computed(() => {
     }
   }
 })
-const currentIndex = ref(null)
+const currentIndex = ref<number>()
 const inputTypeList = ref([
   { label: t('dynamicsForm.input_type_list.TextInput'), value: 'TextInputConstructor' },
   { label: t('dynamicsForm.input_type_list.Slider'), value: 'SliderConstructor' },
@@ -136,36 +142,45 @@ const inputTypeList = ref([
 
 const dialogVisible = ref<boolean>(false)
 
-const open = (row: any, index: any) => {
+const open = (row?: any, index?: number, names: string[] = []) => {
+  usedNames.value = names
+  duplicate.value = false
+  isEdit.value = !!row
   dialogVisible.value = true
 
-  if (row) {
-    isEdit.value = true
-    currentItem.value = cloneDeep(row)
-    currentIndex.value = index
-  } else {
-    currentItem.value = null
-  }
+  currentItem.value = row ? cloneDeep(row) : undefined
+  currentIndex.value = index
 }
 
 const close = () => {
   dialogVisible.value = false
   isEdit.value = false
-  currentIndex.value = null
-  currentItem.value = null as any
+  currentIndex.value = undefined
+  currentItem.value = undefined
 }
 
 const submit = async () => {
   const formEl = DynamicsFormConstructorRef.value
-  if (!formEl) return
-  await formEl.validate().then(() => {
-    emit('refresh', formEl?.getData(), currentIndex.value)
-    isEdit.value = false
-    currentItem.value = null as any
-    currentIndex.value = null
-  })
+  if (!formEl || loading.value) return
+  loading.value = true
+  try {
+    if (
+      !(await formEl.validate().then(
+        () => true,
+        () => false,
+      ))
+    )
+      return
+    const field = formEl.getData()
+    field.field = field.field?.trim()
+    duplicate.value = usedNames.value.includes(field.field)
+    if (duplicate.value) return
+    emit('refresh', field, currentIndex.value)
+    close()
+  } finally {
+    loading.value = false
+  }
 }
 
 defineExpose({ open, close })
 </script>
-<style lang="scss" scoped></style>

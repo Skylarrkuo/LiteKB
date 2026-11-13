@@ -38,6 +38,9 @@ const getStoreKBList: (param?: any, loading?: Ref<boolean>) => Promise<Result<an
 ) => {
   return get('/workspace/store/knowledge_template', param, loading)
 }
+
+const downloadStoreTool = (id: string, version: string, loading?: Ref<boolean>): Promise<boolean> =>
+  exportFile(`${id}-${version}.tool`, `/workspace/store/tool/${encodeURIComponent(id)}/download`, { version }, loading, { inlineErrors: true })
 const getStoreToolWorkflowList: (param?: any, loading?: Ref<boolean>) => Promise<Result<any>> = (
   param,
   loading,
@@ -77,6 +80,7 @@ const addStoreTool: (
 export default {
   getInternalToolList,
   getStoreToolList,
+  downloadStoreTool,
   getStoreKBList,
   getStoreAppList,
   getStoreToolWorkflowList,

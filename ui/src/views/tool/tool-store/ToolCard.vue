@@ -1,113 +1,64 @@
 <template>
-  <CardBox :title="props.tool.name" :description="props.tool.desc" class="cursor tool-card">
-    <template #icon>
-      <el-avatar
-        v-if="isAppIcon(props.tool?.icon)"
-        shape="square"
-        :size="32"
-        style="background: none"
-      >
-        <img :src="resetUrl(props.tool?.icon)" alt="" />
-      </el-avatar>
-      <el-avatar
-        v-else-if="props.tool?.name"
-        :name="props.tool?.name"
-        pinyinColor
-        shape="square"
-        :size="32"
-      />
-    </template>
-    <template #title>
-      <div class="flex align-center">
-        <span :title="props.tool?.name" class="ellipsis"> {{ props.tool?.name }}</span>
-        <el-tag v-if="props.tool?.version" size="small" class="ml-4" type="info" effect="plain">
-          {{ props.tool?.version }}
-        </el-tag>
-      </div>
-    </template>
-    <template #tag>
-      <el-tag size="small" type="info" v-if="props.tool?.label === 'data_source'" class="info-tag">
-        {{ $t('views.tool.dataSource.title') }}
-      </el-tag>
-      <el-tag size="small" type="info" v-else-if="props.tool?.label === 'skill'" class="info-tag">
-        Skills
-      </el-tag>
-      <el-tag
-        size="small"
-        type="info"
-        v-else-if="props.tool?.label === 'workflow_template'"
-        class="info-tag"
-      >
-        {{ $t('views.tool.toolWorkflow.title') }}
-      </el-tag>
-      <el-tag size="small" type="info" class="info-tag" v-else>
-        {{ $t('views.tool.title') }}
-      </el-tag>
-    </template>
-    <template #subTitle>
-      <el-text class="color-secondary lighter" size="small">
-        {{ getSubTitle(props.tool) }}
-      </el-text>
-    </template>
-    <template #footer>
-      <span
-        class="card-footer-left color-secondary flex align-center"
-        v-if="props.tool?.downloads != undefined"
-      >
-        <AppIcon iconName="app-download" class="mr-4" />
-        <span> {{ numberFormat(props.tool.downloads || 0) }} </span>
+  <article class="store-card" :data-tool-id="tool.id">
+    <header>
+      <span class="tool-mark" aria-hidden="true">
+        <img v-if="tool.icon && !iconFailed" :src="resetUrl(tool.icon)" loading="lazy" alt="" @error="iconFailed = true" />
+        <el-icon v-else><Tools /></el-icon>
       </span>
-      <div class="card-footer-operation mb-8" @click.stop>
-        <el-button @click="emit('handleDetail')">
-          {{ $t('common.detail') }}
-        </el-button>
-        <el-button type="primary" :loading="props.addLoading" @click="emit('handleAdd')">
-          {{ $t('common.add') }}
-        </el-button>
+      <div class="tool-heading">
+        <h4>{{ tool.name }}</h4>
+        <p>{{ category }}<span v-if="tool.version"> · {{ tool.version }}</span></p>
       </div>
-    </template>
-  </CardBox>
+    </header>
+    <p class="tool-desc">{{ tool.description || tool.desc }}</p>
+    <p v-if="downloadError" role="alert" class="download-error">{{ $t('views.tool.toolStore.downloadFailed') }}</p>
+    <footer>
+      <el-button text @click="$emit('detail')">{{ $t('common.detail') }}</el-button>
+      <el-button v-if="tool.tool_type !== 'INTERNAL'" text data-testid="store-download" :loading="downloading"
+        @click="download">{{ $t('views.document.upload.download') }}</el-button>
+      <el-button plain type="primary" data-testid="store-add" @click="$emit('add')">{{ $t('common.add') }}</el-button>
+    </footer>
+  </article>
 </template>
-
 <script setup lang="ts">
 import { ref } from 'vue'
-import { isAppIcon, resetUrl, numberFormat } from '@/utils/common'
-const props = defineProps<{
-  tool: any
-  getSubTitle: (v: any) => string
-  addLoading: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'handleAdd'): void
-  (e: 'handleDetail'): void
-}>()
+import { Tools } from '@element-plus/icons-vue'
+import ToolStoreApi from '@/api/tool/store'
+import { resetUrl } from '@/utils/common'
+import type { CatalogTool } from './catalog'
+const props = defineProps<{ tool: CatalogTool; category: string }>()
+defineEmits<{ add: []; detail: [] }>()
+const iconFailed = ref(false)
+const downloading = ref(false)
+const downloadError = ref(false)
+async function download() {
+  if (!props.tool.version || downloading.value) return
+  downloadError.value = false
+  downloadError.value = !await ToolStoreApi.downloadStoreTool(props.tool.id, props.tool.version, downloading)
+}
 </script>
-
-<style lang="scss" scoped>
-.tool-card {
-  :deep(.card-footer) {
-    & > div:first-of-type {
-      flex: 1;
-    }
-
-    .card-footer-operation {
-      display: none;
-    }
+<style scoped lang="scss">
+.download-error { color:var(--el-color-danger-dark-2); overflow-wrap:anywhere; }
+.store-card {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  padding: 15px; border: 1px solid var(--studio-hairline);
+  border-radius: var(--app-border-radius-base); background: var(--app-view-bg-color);
+  &:focus-within { border-color: var(--studio-ink); }
+  header, footer { display: flex; align-items: center; gap: 8px; }
+  .tool-mark {
+    width: 34px; height: 34px; background: var(--studio-selection); color: var(--studio-ink);
+    border-radius: var(--app-border-radius-base); display: grid; place-items: center; flex: none;
+    img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
   }
-
-  &:hover {
-    .card-footer-left {
-      display: none;
-    }
-
-    .card-footer-operation {
-      display: flex !important;
-
-      .el-button {
-        flex: 1;
-      }
-    }
+  .tool-heading { min-width: 0; }
+  h4 { font-size: 15px; line-height: 1.4; color: var(--studio-ink); overflow-wrap: anywhere; }
+  .tool-heading p { font-size: 12px; margin: 2px 0 0; color: var(--app-text-color-secondary); }
+  .tool-desc {
+    font-size: 13px; line-height: 1.55; margin: 0; overflow-wrap: anywhere;
+    color: var(--app-text-color-secondary); display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3; overflow: hidden;
   }
+  footer { justify-content: flex-end; flex-wrap: wrap; margin-top: auto; }
+  footer .el-button { margin: 0; }
 }
 </style>

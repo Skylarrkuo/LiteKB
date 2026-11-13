@@ -1,13 +1,14 @@
 <template>
-  <ContentContainer>
+  <ContentContainer class="tool-library">
     <template #header>
       <slot name="header"></slot>
     </template>
     <template #search>
-      <div class="flex">
+      <div class="tool-toolbar">
         <div class="flex-between complex-search">
           <el-select
             class="complex-search__left"
+            :aria-label="$t('views.tool.library.scope')"
             v-model="search_type"
             style="width: 90px"
             @change="search_type_change"
@@ -18,6 +19,7 @@
           <el-input
             v-if="search_type === 'name'"
             v-model="search_form.name"
+            :aria-label="$t('common.name')"
             @change="searchHandle"
             :placeholder="$t('common.searchBar.placeholder')"
             style="width: 190px"
@@ -26,6 +28,7 @@
           <el-select
             v-else-if="search_type === 'create_user'"
             v-model="search_form.create_user"
+            :aria-label="$t('common.creator')"
             @change="searchHandle"
             filterable
             clearable
@@ -49,16 +52,28 @@
             {{ $t('views.paragraph.setting.cancelSelected') }}
           </el-button>
         </span>
-        <div v-if="isBatch === false">
+        <div v-if="!isBatch && !isShared" class="tool-actions">
           <span class="ml-8" v-if="!isShared && permissionPrecise.create()">
-            <el-button @click="openToolStoreDialog()">
+            <el-button
+              class="browse-tools"
+              data-testid="tool-store-open"
+              @click="openToolStoreDialog()"
+            >
               <AppIcon iconName="app-tool-store" class="mr-4" />
               {{ $t('views.tool.toolStore.title') }}
             </el-button>
           </span>
 
-          <el-dropdown trigger="click">
-            <el-button type="primary" class="ml-8" v-if="!isShared && permissionPrecise.create()">
+          <el-button
+            v-if="permissionPrecise.import()"
+            data-testid="tool-import-open"
+            :icon="Upload"
+            @click="openImport"
+          >
+            {{ $t('views.tool.library.importFile') }}
+          </el-button>
+          <el-dropdown trigger="click" v-if="permissionPrecise.create() || canCreateFolder">
+            <el-button type="primary" data-testid="tool-create-open">
               {{ $t('common.create') }}
               <el-icon class="el-icon--right">
                 <arrow-down />
@@ -66,80 +81,64 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu class="create-dropdown">
-                <el-dropdown-item @click="openCreateDialog()">
-                  <div class="flex align-center">
-                    <el-avatar class="avatar-green" shape="square" :size="32">
-                      <img src="@/assets/tool/icon_tool.svg" style="width: 58%" alt="" />
-                    </el-avatar>
-                    <div class="pre-wrap ml-8">
-                      <div class="lighter">{{ $t('views.tool.title') }}</div>
-                    </div>
-                  </div>
-                </el-dropdown-item>
-                <el-dropdown-item @click="openCreateWorkflowDialog()">
-                  <div class="flex align-center">
-                    <el-avatar class="avatar-green mt-4" shape="square" :size="32">
-                      <img src="@/assets/workflow/logo_workflow.svg" style="width: 60%" alt="" />
-                    </el-avatar>
-                    <div class="pre-wrap ml-8">
-                      <div class="lighter">{{ $t('workflow.workflow') }}</div>
-                    </div>
-                  </div>
-                </el-dropdown-item>
-                <el-dropdown-item @click="openCreateSkillDialog()">
-                  <div class="flex align-center">
-                    <el-avatar shape="square" :size="32">
-                      <img src="@/assets/tool/icon_skill.svg" style="width: 58%" alt="" />
-                    </el-avatar>
-                    <div class="pre-wrap ml-8">
-                      <div class="lighter">Skills</div>
-                    </div>
-                  </div>
-                </el-dropdown-item>
-                <el-dropdown-item @click="openCreateMcpDialog()">
-                  <div class="flex align-center">
-                    <el-avatar shape="square" :size="32">
-                      <img src="@/assets/tool/icon_mcp.svg" style="width: 75%" alt="" />
-                    </el-avatar>
-                    <div class="pre-wrap ml-8">
-                      <div class="lighter">MCP</div>
-                    </div>
-                  </div>
-                </el-dropdown-item>
-
-                <el-dropdown-item @click="openCreateDataSourceDialog()">
-                  <div class="flex align-center">
-                    <el-avatar class="avatar-purple" shape="square" :size="32">
-                      <img src="@/assets/tool/icon_datasource.svg" style="width: 58%" alt="" />
-                    </el-avatar>
-                    <div class="pre-wrap ml-8">
-                      <div class="lighter">{{ $t('views.tool.dataSource.title') }}</div>
-                    </div>
-                  </div>
-                </el-dropdown-item>
-                <el-upload
-                  ref="elUploadRef"
-                  :file-list="[]"
-                  action="#"
-                  multiple
-                  :auto-upload="false"
-                  :show-file-list="false"
-                  :limit="1"
-                  :on-change="(file: any, fileList: any) => importTool(file)"
-                  class="import-button"
-                >
-                  <el-dropdown-item v-if="permissionPrecise.import()">
-                    <div class="flex align-center w-full">
-                      <el-avatar shape="square" :size="32" style="background: none">
-                        <img src="@/assets/icon_import.svg" alt="" />
+                <template v-if="permissionPrecise.create()">
+                  <el-dropdown-item @click="openCreateDialog()">
+                    <div class="flex align-center">
+                      <el-avatar class="avatar-green" shape="square" :size="32">
+                        <img src="@/assets/tool/icon_tool.svg" style="width: 58%" alt="" />
                       </el-avatar>
                       <div class="pre-wrap ml-8">
-                        <div class="lighter">{{ $t('common.importCreate') }}</div>
+                        <div class="lighter">{{ $t('views.tool.title') }}</div>
                       </div>
                     </div>
                   </el-dropdown-item>
-                </el-upload>
-                <el-dropdown-item @click="openCreateFolder" divided v-if="apiType === 'workspace'">
+                  <el-dropdown-item @click="openCreateWorkflowDialog()">
+                    <div class="flex align-center">
+                      <el-avatar class="avatar-green mt-4" shape="square" :size="32">
+                        <img src="@/assets/workflow/logo_workflow.svg" style="width: 60%" alt="" />
+                      </el-avatar>
+                      <div class="pre-wrap ml-8">
+                        <div class="lighter">{{ $t('workflow.workflow') }}</div>
+                      </div>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="openCreateSkillDialog()">
+                    <div class="flex align-center">
+                      <el-avatar shape="square" :size="32">
+                        <img src="@/assets/tool/icon_skill.svg" style="width: 58%" alt="" />
+                      </el-avatar>
+                      <div class="pre-wrap ml-8">
+                        <div class="lighter">Skills</div>
+                      </div>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="openCreateMcpDialog()">
+                    <div class="flex align-center">
+                      <el-avatar shape="square" :size="32">
+                        <img src="@/assets/tool/icon_mcp.svg" style="width: 75%" alt="" />
+                      </el-avatar>
+                      <div class="pre-wrap ml-8">
+                        <div class="lighter">MCP</div>
+                      </div>
+                    </div>
+                  </el-dropdown-item>
+
+                  <el-dropdown-item @click="openCreateDataSourceDialog()">
+                    <div class="flex align-center">
+                      <el-avatar class="avatar-purple" shape="square" :size="32">
+                        <img src="@/assets/tool/icon_datasource.svg" style="width: 58%" alt="" />
+                      </el-avatar>
+                      <div class="pre-wrap ml-8">
+                        <div class="lighter">{{ $t('views.tool.dataSource.title') }}</div>
+                      </div>
+                    </div>
+                  </el-dropdown-item>
+                </template>
+                <el-dropdown-item
+                  @click="openCreateFolder"
+                  :divided="permissionPrecise.create()"
+                  v-if="canCreateFolder"
+                >
                   <div class="flex align-center">
                     <AppIcon iconName="app-folder" style="font-size: 32px"></AppIcon>
 
@@ -157,21 +156,24 @@
       </div>
     </template>
 
-    <div
-      v-loading.fullscreen.lock="paginationConfig.current_page === 1 && loading"
-      style="max-height: calc(100vh - 120px)"
-    >
+    <div v-loading="paginationConfig.current_page === 1 && listBusy" class="tool-results">
+      <div v-if="listError" class="tool-notice" role="alert">
+        {{ $t('views.tool.library.listError') }}
+        <el-button link type="primary" @click="getList">{{
+          $t('views.tool.library.retry')
+        }}</el-button>
+      </div>
       <InfiniteScroll
         :size="tool.toolList.length"
         :total="paginationConfig.total"
         :page_size="paginationConfig.page_size"
         v-model:current_page="paginationConfig.current_page"
         @load="getList"
-        :loading="loading"
+        :loading="listBusy || listError"
       >
         <el-checkbox-group v-model="multipleSelection" @change="handleCheckedChatChange">
           <el-row v-if="tool.toolList.length > 0" :gutter="15" class="w-full">
-            <template v-for="(item, index) in tool.toolList" :key="index">
+            <template v-for="item in tool.toolList" :key="item.id">
               <el-col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" class="mb-16">
                 <CardBox
                   :title="item.name"
@@ -180,8 +182,7 @@
                   :class="{
                     'border-active': multipleSelection.includes(item.id),
                   }"
-                  @click.stop="openEditDialog(item)"
-                  :disabled="!permissionPrecise.edit(item.id) || isBatch"
+                  @click.stop="openCard(item)"
                 >
                   <template #icon>
                     <el-avatar v-if="item?.icon" shape="square" :size="32" style="background: none">
@@ -219,7 +220,7 @@
                     </el-text>
                   </template>
                   <template #tag="{ hoverShow }">
-                    <el-checkbox :value="item.id" v-if="isBatch" @change="checkboxChange(item)" />
+                    <el-checkbox :value="item.id" :aria-label="item.name" v-if="isBatch" @click.stop />
                     <div v-else>
                       <el-tag v-if="isShared" size="small" type="info" class="info-tag">
                         {{ t('views.shared.title') }}
@@ -258,11 +259,13 @@
                     </div>
                   </template>
                   <template #mouseEnter>
-                    <div @click.stop v-if="!isShared && MoreFieldPermission(item.id)">
+                    <div @click.stop v-if="!isBatch && !isShared && MoreFieldPermission(item.id)">
                       <el-switch
-                        v-model="item.is_active"
-                        :before-change="() => changeState(item)"
+                        :model-value="item.is_active"
+                        :disabled="changeStateloading"
+                        @change="changeState(item)"
                         size="small"
+                        :aria-label="item.name + ' · ' + $t('common.status.enabled')"
                         class="mr-4"
                         v-if="permissionPrecise.switch(item.id)"
                       />
@@ -339,17 +342,6 @@
                             </el-dropdown-item>
 
                             <el-dropdown-item
-                              @click.stop="openTriggerDrawer(item)"
-                              v-if="
-                                ['workspace', 'systemManage'].includes(apiType) &&
-                                (item.tool_type === 'CUSTOM' || item.tool_type === 'WORKFLOW') &&
-                                permissionPrecise.trigger_read(item.id)
-                              "
-                            >
-                              <AppIcon iconName="app-trigger" class="color-secondary"></AppIcon>
-                              {{ $t('views.trigger.title') }}
-                            </el-dropdown-item>
-                            <el-dropdown-item
                               text
                               @click.stop="openResourceMappingDrawer(item)"
                               v-if="permissionPrecise.relate_map(item.id)"
@@ -412,7 +404,15 @@
               </el-col>
             </template>
           </el-row>
-          <el-empty :description="$t('common.noData')" v-else />
+          <el-empty
+            v-else-if="!listBusy && !listError"
+            :image-size="70"
+            :description="
+              search_form[search_type] || tool.tool_type
+                ? $t('views.tool.library.noMatch')
+                : $t('views.tool.library.empty')
+            "
+          />
         </el-checkbox-group>
       </InfiniteScroll>
     </div>
@@ -449,21 +449,26 @@
         {{ $t('views.paragraph.setting.cancelSelected') }}
       </el-button>
     </div>
-    <InitParamDrawer ref="InitParamDrawerRef" @refresh="refresh" />
-    <ToolFormDrawer ref="ToolFormDrawerRef" @refresh="refresh" :title="ToolDrawertitle" />
-    <McpToolFormDrawer ref="McpToolFormDrawerRef" @refresh="refresh" :title="McpToolDrawertitle" />
+    <InitParamDrawer ref="InitParamDrawerRef" @refresh="refresh" @saved="({ id }) => toolStoreDescDrawerRef?.reload(id)" />
+    <ToolDebugDrawer ref="savedDebugRef" />
+    <WorkflowDebugDrawer ref="workflowDebugRef" />
+    <ToolFormDrawer ref="ToolFormDrawerRef" @refresh="refresh" @created="openSaved" :title="ToolDrawertitle" />
+    <McpToolFormDrawer ref="McpToolFormDrawerRef" @refresh="refresh" @created="openSaved" :title="McpToolDrawertitle" />
     <SkillToolFormDrawer
       ref="SkillToolFormDrawerRef"
+      @created="openSaved"
       @refresh="refresh"
       :title="SkillToolDrawertitle"
     />
     <DataSourceToolFormDrawer
       ref="DataSourceToolFormDrawerRef"
+      @created="openSaved"
       @refresh="refresh"
       :title="DataSourceToolDrawertitle"
     />
     <CreateFolderDialog ref="CreateFolderDialogRef" v-if="!isShared" @refresh="refreshFolder" />
-    <ToolStoreDialog ref="toolStoreDialogRef" :api-type="apiType" @refresh="refresh" />
+    <ToolStoreDialog ref="toolStoreDialogRef" :api-type="apiType" @refresh="afterImport" />
+    <ToolImportDialog ref="importDialogRef" :api-type="apiType" @imported="afterImport" />
     <AddInternalToolDialog ref="AddInternalToolDialogRef" @refresh="confirmAddInternalTool" />
     <McpToolConfigDialog ref="McpToolConfigDialogRef" @refresh="refresh" />
     <AuthorizedWorkspace
@@ -481,12 +486,11 @@
       ref="ResourceAuthorizationDrawerRef"
       v-if="apiType === 'workspace'"
     />
-    <ToolStoreDescDrawer ref="toolStoreDescDrawerRef" />
+    <ToolStoreDescDrawer ref="toolStoreDescDrawerRef" :fetch-tool="fetchDetail" :catalog="storeTools"
+      :editable="canEditSaved" :debuggable="canDebugSaved" :switchable="id => !isShared && permissionPrecise.switch(id)"
+      :switch-busy="changeStateloading"
+      @edit="editFromDetail" @configure="row => InitParamDrawerRef.open(row)" @debug="debugSaved" @toggle="changeState" />
     <ResourceMappingDrawer ref="resourceMappingDrawerRef"></ResourceMappingDrawer>
-    <ResourceTriggerDrawer
-      ref="resourceTriggerDrawerRef"
-      :source="SourceTypeEnum.TOOL"
-    ></ResourceTriggerDrawer>
     <ExecutionRecordDrawer ref="toolRecordDrawerRef" />
     <WorkflowFormDialog
       ref="workflowFormDialogRef"
@@ -497,12 +501,17 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, reactive, computed, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, reactive, computed, watch } from 'vue'
+import { Upload } from '@element-plus/icons-vue'
+import { hasStartupValue } from '../startup-values'
+import ToolImportDialog from './ToolImportDialog.vue'
 import { cloneDeep } from 'lodash'
 import { useRoute, onBeforeRouteLeave, useRouter } from 'vue-router'
 import type { CheckboxValueType } from 'element-plus'
 import InitParamDrawer from '@/views/tool/component/InitParamDrawer.vue'
 import ToolFormDrawer from '@/views/tool/ToolFormDrawer.vue'
+import ToolDebugDrawer from '@/views/tool/ToolDebugDrawer.vue'
+import WorkflowDebugDrawer from '@/views/tool-workflow/debug-drawer/DebugDrawer.vue'
 import McpToolFormDrawer from '@/views/tool/McpToolFormDrawer.vue'
 import SkillToolFormDrawer from '@/views/tool/SkillToolFormDrawer.vue'
 import DataSourceToolFormDrawer from '@/views/tool/DataSourceToolFormDrawer.vue'
@@ -513,7 +522,6 @@ import AddInternalToolDialog from '@/views/tool/tool-store/AddInternalToolDialog
 import MoveToDialog from '@/components/folder-virtualized-tree/MoveToDialog.vue'
 import ResourceAuthorizationDrawer from '@/components/resource-authorization-drawer/index.vue'
 import McpToolConfigDialog from '@/views/tool/component/McpToolConfigDialog.vue'
-import ResourceTriggerDrawer from '@/views/trigger/ResourceTriggerDrawer.vue'
 import ToolStoreDescDrawer from '@/views/tool/component/ToolStoreDescDrawer.vue'
 import ResourceMappingDrawer from '@/components/resource_mapping/index.vue'
 import WorkflowFormDialog from '../WorkflowFormDialog.vue'
@@ -534,7 +542,8 @@ const router = useRouter()
 const route = useRoute()
 
 const { folder, user, tool } = useStore()
-onBeforeRouteLeave((to, from) => {
+onBeforeRouteLeave(() => {
+  ++listRequest
   tool.setToolList([])
 })
 const emit = defineEmits(['refreshFolder'])
@@ -550,7 +559,7 @@ const apiType = computed(() => {
 })
 
 const isShared = computed(() => {
-  return folder.currentFolder.id === 'share'
+  return folder.currentFolder?.id === 'share'
 })
 const isSystemShare = computed(() => {
   return apiType.value === 'systemShare'
@@ -559,23 +568,25 @@ const isSystemShare = computed(() => {
 const permissionPrecise = computed(() => {
   return permissionMap['tool'][apiType.value]
 })
+const canCreateFolder = computed(
+  () =>
+    apiType.value === 'workspace' &&
+    folder.currentFolder?.id &&
+    permissionPrecise.value.folderCreate(folder.currentFolder.id),
+)
 
 const MoreFieldPermission = (id: any) => {
   return (
     permissionPrecise.value.edit(id) ||
+    permissionPrecise.value.switch(id) ||
+    permissionPrecise.value.copy(id) ||
     permissionPrecise.value.export(id) ||
     permissionPrecise.value.delete(id) ||
     permissionPrecise.value.auth(id) ||
     permissionPrecise.value.relate_map(id) ||
-    permissionPrecise.value.trigger_read(id) ||
     permissionPrecise.value.record(id) ||
     isSystemShare.value
   )
-}
-
-const resourceTriggerDrawerRef = ref<InstanceType<typeof ResourceTriggerDrawer>>()
-const openTriggerDrawer = (data: any) => {
-  resourceTriggerDrawerRef.value?.open(data)
 }
 
 const resourceMappingDrawerRef = ref<InstanceType<typeof ResourceMappingDrawer>>()
@@ -603,6 +614,9 @@ const search_form = ref<any>({
 const user_options = ref<any[]>([])
 
 const loading = ref(false)
+const listBusy = ref(false)
+const listError = ref(false)
+let listRequest = 0
 const changeStateloading = ref(false)
 const paginationConfig = reactive({
   current_page: 1,
@@ -612,6 +626,7 @@ const paginationConfig = reactive({
 
 const search_type_change = () => {
   search_form.value = { name: '', create_user: '' }
+  searchHandle()
 }
 const ToolFormDrawerRef = ref()
 const McpToolFormDrawerRef = ref()
@@ -651,16 +666,6 @@ const handleCheckedChatChange = (value: CheckboxValueType[]) => {
   checkAll.value = checkedCount === tool.toolList.length
 }
 
-const checkboxChange = (data?: any) => {
-  const index = multipleSelection.value.indexOf(data?.id)
-  if (index === -1) {
-    multipleSelection.value.push(data?.id)
-  } else {
-    multipleSelection.value.splice(index, 1)
-  }
-  checkAll.value = multipleSelection.value.length === tool.toolList.length
-}
-
 function deleteMulTool() {
   MsgConfirm(
     `${t('views.document.delete.confirmTitle1')} ${multipleSelection.value.length} ${t('views.tool.delete.confirmTitle2')}`,
@@ -684,7 +689,7 @@ function deleteMulTool() {
     .catch(() => {})
 }
 
-function openEditDialog(data?: any) {
+function openCard(data: any) {
   if (isBatch.value) {
     const index = multipleSelection.value.indexOf(data?.id)
     if (index === -1) {
@@ -695,11 +700,11 @@ function openEditDialog(data?: any) {
     checkAll.value = multipleSelection.value.length === tool.toolList.length
     return
   }
+  openSaved(data)
+}
+
+function openEditDialog(data?: any) {
   if (!permissionPrecise.value.edit(data?.id)) {
-    return
-  }
-  // 有template_id的不允许编辑，是模板转换来的
-  if (data?.template_id) {
     return
   }
   // 共享过来的工具不让编辑
@@ -709,17 +714,7 @@ function openEditDialog(data?: any) {
   if (data) {
     bus.emit('select_node', data.folder_id)
   }
-  // 有版本号的展示readme，是商店更新过来的
-  if (data?.version) {
-    let readMe = ''
-    storeTools.value
-      .filter((item) => item.id === data.template_id)
-      .forEach((item) => {
-        readMe = item.readMe
-      })
-    toolStoreDescDrawerRef.value?.open(readMe, data)
-    return
-  }
+  if (data?.template_id) return
 
   // mcp工具
   if (data?.tool_type === 'MCP') {
@@ -795,6 +790,35 @@ function openAuthorizedWorkspaceDialog(row: any) {
 }
 
 const toolStoreDescDrawerRef = ref<InstanceType<typeof ToolStoreDescDrawer>>()
+const savedDebugRef = ref<InstanceType<typeof ToolDebugDrawer>>()
+const workflowDebugRef = ref<InstanceType<typeof WorkflowDebugDrawer>>()
+function openSaved(data: any) {
+  if (data?.id) toolStoreDescDrawerRef.value?.open(data)
+}
+function fetchDetail(id: string) {
+  if (isShared.value) {
+    const row = tool.toolList.find(item => item.id === id)
+    return row ? Promise.resolve({ data: row }) : Promise.reject(new Error('Tool not found'))
+  }
+  return loadSharedApi({ type: 'tool', systemType: apiType.value }).getToolById(id)
+}
+function canEditSaved(id: string) {
+  return !isShared.value && permissionPrecise.value.edit(id)
+}
+function canDebugSaved(id: string) {
+  return apiType.value === 'workspace' && canEditSaved(id)
+}
+function debugSaved(data: any) {
+  if (!canDebugSaved(data.id) || !data.execution?.available) return
+  if (data.execution.debug_mode === 'workflow') workflowDebugRef.value?.open(data.id, data)
+  else savedDebugRef.value?.openSaved(data)
+}
+function editFromDetail(data: any) {
+  if (!canEditSaved(data.id)) return
+  if (data.template_id) addInternalTool(data, true)
+  else if (data.tool_type === 'WORKFLOW') openCreateWorkflowDialog(data)
+  else openEditDialog(data)
+}
 
 function openCreateDialog() {
   ToolDrawertitle.value = t('views.tool.createTool')
@@ -825,17 +849,6 @@ function openCreateMcpDialog(data?: any) {
 }
 
 function openCreateSkillDialog(data?: any) {
-  // 有版本号的展示readme，是商店更新过来的
-  if (data?.version) {
-    let readMe = ''
-    storeTools.value
-      .filter((item) => item.id === data.template_id)
-      .forEach((item) => {
-        readMe = item.readMe
-      })
-    toolStoreDescDrawerRef.value?.open(readMe, data)
-    return
-  }
   // 有template_id的不允许编辑，是模板转换来的
   if (data?.template_id) {
     return
@@ -912,67 +925,35 @@ function openCreateDataSourceDialog(data?: any) {
 }
 
 async function changeState(row: any) {
-  if (row.is_active) {
-    MsgConfirm(
-      `${t('views.tool.disabled.confirmTitle')}${row.name} ?`,
-      t('views.tool.disabled.confirmMessage'),
-      {
-        confirmButtonText: t('common.status.disable'),
-        confirmButtonClass: 'danger',
-      },
-    ).then(() => {
-      const obj = {
-        is_active: !row.is_active,
+  if (changeStateloading.value || isShared.value || !permissionPrecise.value.switch(row.id)) return
+  changeStateloading.value = true
+  const enable = !row.is_active
+  try {
+    if (!enable) {
+      await MsgConfirm(t('views.tool.disabled.confirmTitle') + row.name + '?', t('views.tool.disabled.confirmMessage'), {
+        confirmButtonText: t('common.status.disable'), confirmButtonClass: 'danger',
+      })
+    } else {
+      const { data } = await fetchDetail(row.id)
+      if (data.tool_type === 'WORKFLOW' && !data.is_publish) {
+        await MsgConfirm(t('common.tip'), t('views.tool.toolWorkflow.toActiveTip'))
+        toWorkflow(data)
+        return
       }
-      loadSharedApi({ type: 'tool', systemType: apiType.value })
-        .putTool(row.id, obj, changeStateloading)
-        .then(() => {
-          const list = cloneDeep(tool.toolList)
-          const index = list.findIndex((v) => v.id === row.id)
-          list[index].is_active = !row.is_active
-          tool.setToolList(list)
-          return true
-        })
-        .catch(() => {
-          return false
-        })
-    })
-  } else {
-    const res = await loadSharedApi({ type: 'tool', systemType: apiType.value }).getToolById(
-      row.id,
-      changeStateloading,
-    )
-    if (row.tool_type === 'WORKFLOW' && !res.data.is_publish) {
-      MsgConfirm(t('common.tip'), t('views.tool.toolWorkflow.toActiveTip')).then(() => {
-        toWorkflow(row)
-      })
-      return
+      if (data.init_field_list?.some((field: any) => field.required && !hasStartupValue(data, field))) {
+        InitParamDrawerRef.value.open(data, true)
+        return
+      }
     }
-    if (
-      (!res.data.init_params || Object.keys(res.data.init_params).length === 0) &&
-      res.data.init_field_list &&
-      res.data.init_field_list.length > 0 &&
-      res.data.init_field_list.filter((item: any) => item.default_value && item.show_default_value)
-        .length !== res.data.init_field_list.length
-    ) {
-      InitParamDrawerRef.value.open(res.data, !row.is_active)
-      return false
-    }
-    const obj = {
-      is_active: !row.is_active,
-    }
-    loadSharedApi({ type: 'tool', systemType: apiType.value })
-      .putTool(row.id, obj, changeStateloading)
-      .then(() => {
-        const list = cloneDeep(tool.toolList)
-        const index = list.findIndex((v) => v.id === row.id)
-        list[index].is_active = !row.is_active
-        tool.setToolList(list)
-        return true
-      })
-      .catch(() => {
-        return false
-      })
+    await loadSharedApi({ type: 'tool', systemType: apiType.value }).putTool(row.id, { is_active: enable })
+    tool.setToolList(tool.toolList.map(item => item.id === row.id ? { ...item, is_active: enable } : item))
+    await toolStoreDescDrawerRef.value?.reload(row.id)
+    MsgSuccess(t(enable ? 'common.status.enableSuccess' : 'common.status.disableSuccess'))
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close' && !error?.code && !error?.response?.data?.message)
+      MsgError(t('views.tool.detail.stateError'))
+  } finally {
+    changeStateloading.value = false
   }
 }
 
@@ -1099,9 +1080,15 @@ function configInitParams(item: any) {
 }
 
 const toolStoreDialogRef = ref<InstanceType<typeof ToolStoreDialog>>()
+const targetFolder = computed(() => {
+  const id = folder.currentFolder?.id || user.getWorkspaceId()
+  return { id, name: i18n_name(folder.currentFolder?.name || id) }
+})
 
 function openToolStoreDialog() {
-  toolStoreDialogRef.value?.open(folder.currentFolder.id)
+  if (isShared.value || !permissionPrecise.value.create()) return
+  const { id, name } = targetFolder.value
+  if (id) toolStoreDialogRef.value?.open(id, name)
 }
 
 const AddInternalToolDialogRef = ref<InstanceType<typeof AddInternalToolDialog>>()
@@ -1116,6 +1103,7 @@ function confirmAddInternalTool(data?: any, isEdit?: boolean) {
       .putTool(data?.id as string, { name: data.name }, loading)
       .then((res: any) => {
         MsgSuccess(t('common.saveSuccess'))
+        toolStoreDescDrawerRef.value?.reload(data.id)
         refresh()
       })
   }
@@ -1124,25 +1112,24 @@ function confirmAddInternalTool(data?: any, isEdit?: boolean) {
 const storeTools = ref<any[]>([])
 
 function getStoreToolList() {
-  ToolStoreApi.getStoreToolList({ name: '' }, loading).then((res: any) => {
-    storeTools.value = res.data.apps
-  })
+  ToolStoreApi.getStoreToolList({ name: '' })
+    .then((res: any) => {
+      storeTools.value = res.data?.apps || []
+    })
+    .catch(() => {
+      storeTools.value = []
+    })
 }
 
 function showUpdateStoreTool(item: any) {
-  for (const tool of storeTools.value) {
-    if (tool.id === item.template_id && tool.version !== item.version) {
-      item.downloadUrl = tool.downloadUrl
-      item.downloadCallbackUrl = tool.downloadCallbackUrl
-      item.icon = tool.icon
-      item.versions = tool.versions
-      item.label = tool.label
-      return true
-    }
-  }
+  return storeTools.value.find(
+    (entry) => entry.id === item.template_id && entry.version !== item.version,
+  )
 }
 
 function updateStoreTool(item: any) {
+  const upstream = showUpdateStoreTool(item)
+  if (!upstream) return
   MsgConfirm(
     t('views.tool.toolStore.confirmTip') + item.name,
     t('views.tool.toolStore.updateStoreToolMessage'),
@@ -1152,54 +1139,28 @@ function updateStoreTool(item: any) {
     },
   )
     .then(() => {
-      const obj = {
-        download_url: item.downloadUrl,
-        download_callback_url: item.downloadCallbackUrl,
-        icon: item.icon,
-        versions: item.versions,
-        label: item.label,
-      }
       loadSharedApi({ type: 'tool', systemType: apiType.value })
-        .updateStoreTool(item.id, obj, loading)
+        .updateStoreTool(item.id, { version: upstream.version }, loading)
         .then(async (res: any) => {
           if (res?.data) {
-            tool.setToolList([])
-            return user.profile().then(() => {
-              getList()
-            })
+            refresh()
+            return user.profile()
           }
         })
     })
     .catch(() => {})
 }
 
-const elUploadRef = ref()
-
-function importTool(file: any) {
-  const formData = new FormData()
-  formData.append('file', file.raw, file.name)
-  formData.append('folder_id', folder.currentFolder.id || user.getWorkspaceId())
-  elUploadRef.value.clearFiles()
-  loadSharedApi({ type: 'tool', systemType: apiType.value })
-    .postImportTool(formData, loading)
-    .then(async (res: any) => {
-      if (res?.data) {
-        tool.setToolList([])
-        return user.profile().then(() => {
-          getList()
-        })
-      }
-    })
-    .catch((e: any) => {
-      if (e.code === 400) {
-        MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-          cancelButtonText: t('common.confirm'),
-          confirmButtonText: t('common.professional'),
-        }).then(() => {
-          window.open('https://maxkb.cn/pricing.html', '_blank')
-        })
-      }
-    })
+const importDialogRef = ref<InstanceType<typeof ToolImportDialog>>()
+function openImport() {
+  if (isShared.value || !permissionPrecise.value.import()) return
+  const { id, name } = targetFolder.value
+  if (id) importDialogRef.value?.open(id, name)
+}
+async function afterImport(row?: { id: string }) {
+  refresh()
+  try { await user.profile() } catch { /* The tool is already installed. */ }
+  openSaved(row)
 }
 
 const McpToolConfigDialogRef = ref()
@@ -1214,10 +1175,15 @@ function showMcpConfig(item: any) {
 
 function refresh(data?: any) {
   if (data) {
+    if (data.id) toolStoreDescDrawerRef.value?.reload(data.id)
     const list = cloneDeep(tool.toolList)
     const index = list.findIndex((v) => v.id === data.id)
-    list.splice(index, 1, data)
-    tool.setToolList(list)
+    if (index >= 0) {
+      list.splice(index, 1, data)
+      tool.setToolList(list)
+    } else {
+      refresh()
+    }
   } else {
     paginationConfig.total = 0
     paginationConfig.current_page = 1
@@ -1226,36 +1192,39 @@ function refresh(data?: any) {
   }
 }
 
+let checkedCatalog = false
+
 // 文件夹相关
 const CreateFolderDialogRef = ref()
 
 function openCreateFolder() {
+  if (!canCreateFolder.value) return
   CreateFolderDialogRef.value.open(SourceTypeEnum.TOOL, folder.currentFolder.id)
 }
 
 watch(
-  () => folder.currentFolder,
+  () => folder.currentFolder?.id,
   (newValue) => {
-    if (newValue && newValue.id) {
+    if (newValue) {
       batchSelectedHandle(false)
-      paginationConfig.current_page = 1
-      tool.setToolList([])
-      getList()
+      refresh()
     }
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 )
 
 watch(
   () => tool.tool_type,
   () => {
-    paginationConfig.current_page = 1
-    tool.setToolList([])
-    getList()
+    refresh()
   },
 )
 
-function getList() {
+async function getList() {
+  const request = ++listRequest
+  const page = paginationConfig.current_page
+  listBusy.value = true
+  listError.value = false
   const params: any = {
     folder_id: folder.currentFolder?.id || user.getWorkspaceId(),
     scope: apiType.value === 'systemShare' ? 'SHARED' : 'WORKSPACE',
@@ -1264,12 +1233,27 @@ function getList() {
   if (search_form.value[search_type.value]) {
     params[search_type.value] = search_form.value[search_type.value]
   }
-  loadSharedApi({ type: 'tool', isShared: isShared.value, systemType: apiType.value })
-    .getToolListPage(paginationConfig, params, loading)
-    .then((res: any) => {
-      paginationConfig.total = res.data?.total
-      tool.setToolList([...tool.toolList, ...res.data?.records])
-    })
+  try {
+    const res = await loadSharedApi({
+      type: 'tool',
+      isShared: isShared.value,
+      systemType: apiType.value,
+    }).getToolListPage({ current_page: page, page_size: paginationConfig.page_size }, params)
+    if (request !== listRequest) return
+    paginationConfig.total = res.data.total
+    const merged = new Map<string, any>()
+    for (const item of [...(page === 1 ? [] : tool.toolList), ...res.data.records])
+      merged.set(item.id, item)
+    tool.setToolList([...merged.values()])
+    if (!checkedCatalog && res.data.records.some((row: any) => row.template_id)) {
+      checkedCatalog = true
+      getStoreToolList()
+    }
+  } catch {
+    if (request === listRequest) listError.value = true
+  } finally {
+    if (request === listRequest) listBusy.value = false
+  }
 }
 
 function refreshFolder() {
@@ -1277,9 +1261,7 @@ function refreshFolder() {
 }
 
 function searchHandle() {
-  paginationConfig.current_page = 1
-  tool.setToolList([])
-  getList()
+  refresh()
 }
 
 function getUserList(query: string) {
@@ -1301,8 +1283,71 @@ onMounted(() => {
   if (apiType.value !== 'workspace') {
     getList()
   }
-  getStoreToolList()
+})
+onBeforeUnmount(() => {
+  ++listRequest
 })
 </script>
 
-<style lang="scss" scoped></style>
+<style scoped>
+.tool-toolbar,
+.tool-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.tool-toolbar {
+  justify-content: flex-end;
+}
+.tool-toolbar .ml-8,
+.tool-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+.browse-tools {
+  color: var(--studio-ink);
+  background: var(--studio-selection);
+  border-color: var(--studio-hairline);
+}
+.browse-tools:hover,
+.browse-tools:focus-visible {
+  border-color: var(--studio-ink);
+}
+.tool-results {
+  min-height: 150px;
+  padding: 2px 1px;
+}
+.tool-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--app-text-color-secondary);
+}
+.tool-library :deep(.content-toolbar) {
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .tool-toolbar,
+  .tool-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .tool-toolbar .complex-search {
+    flex: 1 1 170px;
+    min-width: 0;
+  }
+  .tool-toolbar .complex-search__left {
+    flex: 0 0 90px;
+  }
+  .tool-toolbar .complex-search > :last-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .tool-actions > :deep(.el-button),
+  .tool-actions :deep(.el-button) {
+    padding-inline: 10px;
+  }
+}
+</style>

@@ -3,10 +3,11 @@
     :title="$t('views.tool.form.toolName.label')"
     v-model="dialogVisible"
     :close-on-click-modal="false"
-    :close-on-press-escape="false"
     :destroy-on-close="true"
     append-to-body
-    width="450"
+    width="min(450px, calc(100vw - 24px))"
+    align-center
+    class="tool-rename-dialog"
   >
     <el-form
       label-position="top"
@@ -16,7 +17,7 @@
       require-asterisk-position="right"
     >
       <el-form-item prop="name" :label="$t('common.name')">
-        <el-input v-model="form.name" maxlength="64" show-word-limit></el-input>
+        <el-input v-model.trim="form.name" maxlength="64" show-word-limit></el-input>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -48,7 +49,7 @@ const form = ref<any>({
 const rules = reactive({
   name: [
     {
-      required: true,
+      required: true, whitespace: true,
       message: t('views.tool.form.toolName.placeholder'),
       trigger: 'blur'
     }

@@ -1,200 +1,277 @@
 <template>
   <el-drawer
-    v-model="debugVisible"
-    size="60%"
-    :append-to-body="true"
-    :modal="false"
-    :show-close="false"
+    v-model="visible"
+    size="min(620px, 100%)"
+    :title="t('common.debug')"
+    append-to-body
+    destroy-on-close
   >
-    <template #header>
-      <div class="flex align-center" style="margin-left: -8px">
-        <el-button class="cursor mr-4" link @click.prevent="debugVisible = false">
-          <el-icon :size="20">
-            <Back />
-          </el-icon>
-        </el-button>
-        <h4>{{ $t('common.debug') }}</h4>
+    <template #header="{ titleId }">
+      <div class="tool-drawer-heading">
+        <el-icon aria-hidden="true"><VideoPlay /></el-icon>
+        <div>
+          <h2 :id="titleId">{{ t('common.debug') }}</h2>
+          <p v-if="toolName">{{ toolName }}</p>
+        </div>
       </div>
     </template>
-    <div>
-      <div v-if="form.init_field_list.length > 0" class="mb-16">
-        <h4 class="title-decoration-1 mb-16">
-          {{ $t('common.param.initParam') }}
-        </h4>
-        <el-card shadow="never" class="card-never" style="--el-card-padding: 12px">
-          <DynamicsForm
-            v-model="form.init_params"
-            :model="form.init_params"
-            label-position="top"
-            require-asterisk-position="right"
-            :render_data="form.init_field_list"
-            ref="dynamicsFormRef"
+    <div class="tool-drawer-body" data-testid="tool-debug">
+      <p v-if="unavailable" role="status" class="tool-notice">{{ unavailable }}</p>
+      <p v-else-if="isMcp" class="tool-hint">{{ t('views.tool.debugPanel.mcpHelp') }}</p>
+      <p v-else-if="savedId && fields.length" class="tool-hint">
+        {{ t('views.tool.debugPanel.storedParams') }}
+      </p>
+      <section v-if="!savedId && fields.length">
+        <h3>{{ t('common.param.initParam') }}</h3>
+        <DynamicsForm
+          :key="formSession"
+          v-model="params"
+          :model="params"
+          :render_data="fields"
+          ref="initForm"
+          default-item-width="100%"
+          :disabled="sending"
+        />
+      </section>
+      <section v-if="inputs.length">
+        <h3>{{ t('common.param.inputParam') }}</h3>
+        <el-form
+          ref="inputForm"
+          :model="values"
+          label-position="top"
+          :disabled="sending"
+          @submit.prevent
+        >
+          <el-form-item
+            v-for="(field, index) in inputs"
+            :key="field.name"
+            :label="field.name"
+            :prop="[String(index)]"
+            :required="field.is_required"
+            :rules="inputRules(field)"
           >
-          </DynamicsForm>
-        </el-card>
-      </div>
-      <div v-if="form.debug_field_list.length > 0" class="mb-16">
-        <h4 class="title-decoration-1 mb-16">
-          {{ $t('common.param.inputParam') }}
-        </h4>
-        <el-card shadow="never" class="card-never" style="--el-card-padding: 12px">
-          <el-form
-            ref="FormRef"
-            :model="form"
-            label-position="top"
-            require-asterisk-position="right"
-            hide-required-asterisk
-            v-loading="loading"
-            @submit.prevent
-          >
-            <template v-for="(item, index) in form.debug_field_list" :key="index">
-              <el-form-item
-                :label="item.name"
-                :prop="'debug_field_list.' + index + '.value'"
-                :rules="{
-                  required: item.is_required,
-                  message: $t('views.tool.form.param.inputPlaceholder'),
-                  trigger: 'blur',
-                }"
-              >
-                <template #label>
-                  <div class="flex">
-                    <span
-                      >{{ item.name }}
-                      <span class="color-danger" v-if="item.is_required">*</span></span
-                    >
-                    <el-tag size="small" type="info" class="info-tag ml-4">{{ item.type }}</el-tag>
-                  </div>
-                </template>
-                <el-input
-                  v-model="item.value"
-                  :placeholder="$t('views.tool.form.param.inputPlaceholder')"
-                />
-              </el-form-item>
-            </template>
-          </el-form>
-        </el-card>
-      </div>
-
-      <el-button type="primary" @click="submit(FormRef)" :loading="loading">
-        {{ $t('views.tool.form.debug.run') }}
-      </el-button>
-      <div v-if="showResult" class="mt-8">
-        <h4 class="title-decoration-1 mb-16 mt-16">
-          {{ $t('views.tool.form.debug.runResult') }}
-        </h4>
-        <div class="mb-16">
-          <el-alert
-            v-if="isSuccess"
-            :title="$t('views.tool.form.debug.runSuccess')"
-            type="success"
-            show-icon
-            :closable="false"
-          />
-          <el-alert
-            v-else
-            :title="$t('views.tool.form.debug.runFailed')"
-            type="error"
-            show-icon
-            :closable="false"
-          />
-        </div>
-
-        <p class="lighter mb-8">{{ $t('views.tool.form.debug.output') }}</p>
-
-        <el-card :class="isSuccess ? '' : 'color-danger'" class="pre-wrap" shadow="never">
-          {{ String(result) == '0' ? 0 : result || '-' }}
-        </el-card>
-      </div>
+            <template #label
+              ><span>{{ field.name }}</span
+              ><code>{{ field.type || 'string' }}</code></template
+            >
+            <el-select
+              v-if="field.type === 'boolean'"
+              v-model="values[index]"
+              clearable
+              :value-on-clear="''"
+              :aria-label="field.name"
+            >
+              <el-option label="true" value="true" /><el-option label="false" value="false" />
+            </el-select>
+            <el-input
+              v-else
+              v-model="values[index]"
+              :aria-label="field.name"
+              :type="['dict', 'array'].includes(field.type || '') ? 'textarea' : 'text'"
+              :autosize="{ minRows: 3, maxRows: 10 }"
+              :inputmode="
+                field.type === 'int' ? 'numeric' : field.type === 'float' ? 'decimal' : undefined
+              "
+            />
+            <p v-if="field.desc" class="tool-help">{{ field.desc }}</p>
+          </el-form-item>
+        </el-form>
+      </section>
+      <p v-else-if="!fields.length && !isMcp && !unavailable" class="tool-hint">
+        {{ t('views.tool.debugPanel.noInputs') }}
+      </p>
+      <section
+        v-if="outcome"
+        class="tool-result"
+        :class="{ failed: !outcome.ok }"
+        data-testid="tool-debug-result"
+      >
+        <h3 :role="outcome.ok ? 'status' : 'alert'">
+          <el-icon aria-hidden="true"
+            ><SuccessFilled v-if="outcome.ok" /><WarningFilled v-else
+          /></el-icon>
+          {{
+            outcome.ok
+              ? t('views.tool.form.debug.runSuccess')
+              : t('views.tool.form.debug.runFailed')
+          }}
+        </h3>
+        <pre tabindex="0" :aria-label="t('views.tool.form.debug.output')">{{
+          formatOutput(outcome.output)
+        }}</pre>
+      </section>
     </div>
+    <template #footer>
+      <el-button @click="visible = false">{{ t('common.close') }}</el-button>
+      <el-button
+        type="primary"
+        :icon="VideoPlay"
+        :loading="sending"
+        :disabled="!!unavailable"
+        data-testid="tool-debug-run"
+        @click="submit"
+      >
+        {{ isMcp ? t('views.tool.debugPanel.testConnection') : t('views.tool.form.debug.run') }}
+      </el-button>
+    </template>
   </el-drawer>
 </template>
-
 <script setup lang="ts">
-import { ref, reactive, watch, computed } from 'vue'
-import type { FormInstance } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+import { cloneDeep } from 'lodash'
+import type { FormInstance, FormItemRule } from 'element-plus'
+import { VideoPlay, WarningFilled, SuccessFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
+import { t } from '@/locales'
 import DynamicsForm from '@/components/dynamics-form/index.vue'
+import type { FormField } from '@/components/dynamics-form/type'
 import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
-
+import {
+  errorMessage,
+  formatOutput,
+  initialParams,
+  inputText,
+  validInput,
+  type DebugResult,
+  type ToolDefinition,
+  type ToolInput,
+} from './component/tool-debug'
+const emit = defineEmits<{ result: [result: DebugResult] }>()
 const route = useRoute()
+const apiType = computed(() =>
+  route.path.includes('shared')
+    ? 'systemShare'
+    : route.path.includes('resource-management')
+      ? 'systemManage'
+      : 'workspace',
+)
+const visible = ref(false),
+  sending = ref(false),
+  savedId = ref(''),
+  toolName = ref(''),
+  code = ref(''),
+  unavailable = ref('')
+const isMcp = ref(false)
+const formSession = ref(0)
+const inputs = ref<ToolInput[]>([]),
+  fields = ref<FormField[]>([]),
+  values = ref<string[]>([])
+const params = ref<Record<string, any>>({}),
+  outcome = ref<DebugResult>()
+const inputForm = ref<FormInstance>(),
+  initForm = ref<InstanceType<typeof DynamicsForm>>()
+let sequence = 0
 
-const apiType = computed(() => {
-  if (route.path.includes('shared')) {
-    return 'systemShare'
-  } else if (route.path.includes('resource-management')) {
-    return 'systemManage'
-  } else {
-    return 'workspace'
+function inputRules(field: ToolInput): FormItemRule[] {
+  return [
+    {
+      trigger: 'blur',
+      validator: (_rule, v, done) => {
+        if (!String(v ?? '').trim() && field.is_required)
+          done(new Error(t('views.tool.form.param.inputPlaceholder')))
+        else if (!validInput(field.type, v ?? ''))
+          done(new Error(t('views.tool.debugPanel.expectedType', { type: field.type })))
+        else done()
+      },
+    },
+  ]
+}
+
+function reset() {
+  ++sequence
+  sending.value = false
+  outcome.value = undefined
+  code.value = ''
+  savedId.value = ''
+  values.value = []
+  fields.value = []
+  inputs.value = []
+  params.value = {}
+  unavailable.value = ''
+  isMcp.value = false
+}
+watch(
+  visible,
+  (show) => {
+    if (!show) reset()
+  },
+  { flush: 'sync' },
+)
+
+function start(data: ToolDefinition, saved: boolean) {
+  reset()
+  ++formSession.value
+  toolName.value = data.name || ''
+  savedId.value = saved ? data.id || '' : ''
+  isMcp.value = saved && data.execution?.debug_mode === 'mcp'
+  if (
+    saved &&
+    (!savedId.value ||
+      (data.execution &&
+        (!['python', 'mcp'].includes(data.execution.debug_mode) || !data.execution.available)))
+  ) {
+    unavailable.value = data.execution?.reason || t('views.tool.debugPanel.unavailable')
   }
-})
-const FormRef = ref()
-const dynamicsFormRef = ref()
-const loading = ref(false)
-const debugVisible = ref(false)
-const showResult = ref(false)
-const isSuccess = ref(false)
-const result = ref('')
-
-const form = ref<any>({
-  debug_field_list: [],
-  code: '',
-  input_field_list: [],
-  init_field_list: [],
-  init_params: {},
-})
-
-watch(debugVisible, (bool) => {
-  if (!bool) {
-    showResult.value = false
-    isSuccess.value = false
-    result.value = ''
-    form.value = {
-      debug_field_list: [],
-      code: '',
-      input_field_list: [],
-      init_field_list: [],
-      init_params: {},
+  code.value = saved ? '' : data.code || ''
+  inputs.value = isMcp.value ? [] : cloneDeep(data.input_field_list || [])
+  values.value = inputs.value.map((f) => inputText(f.value ?? f.default_value))
+  fields.value = cloneDeep(data.init_field_list || [])
+  if (!saved) {
+    // Unpublished draft code must never receive an installed tool's stored credential.
+    if (data.id)
+      fields.value
+        .filter((f) => f.input_type === 'PasswordInput')
+        .forEach((f) => {
+          delete f.default_value
+        })
+    params.value = initialParams(fields.value, data.init_params, !!data.id)
+  }
+  visible.value = true
+}
+function open(data: ToolDefinition) {
+  start(data, false)
+}
+function openSaved(data: ToolDefinition) {
+  start(data, true)
+}
+async function submit() {
+  if (sending.value || unavailable.value) return
+  const request = ++sequence
+  sending.value = true
+  try {
+    try {
+      await Promise.all([initForm.value?.validate(), inputForm.value?.validate()])
+    } catch {
+      return
     }
+    if (request !== sequence) return
+    const debug_field_list = inputs.value.map((field, i) => ({
+      name: field.name,
+      value: values.value[i] ?? '',
+    }))
+    const api = loadSharedApi({ type: 'tool', systemType: apiType.value })
+    const res = savedId.value
+      ? await api.postSavedToolDebug(savedId.value, { debug_field_list })
+      : await api.postToolDebug({
+          code: code.value,
+          input_field_list: inputs.value.map(({ value, ...field }) => field),
+          init_field_list: fields.value,
+          init_params: params.value,
+          debug_field_list,
+        })
+    if (request !== sequence) return
+    outcome.value =
+      res.code === 200
+        ? { ok: true, output: res.data }
+        : { ok: false, output: res.message || t('views.tool.form.debug.runFailed') }
+  } catch (e) {
+    if (request !== sequence) return
+    outcome.value = { ok: false, output: errorMessage(e, t('views.tool.form.debug.runFailed')) }
+  } finally {
+    if (request === sequence) sending.value = false
   }
-})
-
-const submit = async (formEl: FormInstance | undefined) => {
-  const validate = formEl ? formEl.validate() : Promise.resolve()
-  Promise.all([dynamicsFormRef.value?.validate(), validate]).then(() => {
-    loadSharedApi({ type: 'tool', systemType: apiType.value })
-      .postToolDebug(form.value, loading)
-      .then((res: any) => {
-        if (res.code === 500) {
-          showResult.value = true
-          isSuccess.value = false
-          result.value = res.message
-        } else {
-          showResult.value = true
-          isSuccess.value = true
-          result.value = res.data
-        }
-      })
-  })
+  if (outcome.value) emit('result', outcome.value)
 }
-
-const open = (data: any) => {
-  if (data.input_field_list.length > 0) {
-    data.input_field_list.forEach((item: any) => {
-      form.value.debug_field_list.push({
-        value: '',
-        ...item,
-      })
-    })
-  }
-  form.value.code = data.code
-  form.value.input_field_list = data.input_field_list
-  form.value.init_field_list = data.init_field_list
-  debugVisible.value = true
-}
-
-defineExpose({
-  open,
-})
+defineExpose({ open, openSaved })
 </script>
-<style lang="scss"></style>
+<style scoped src="./component/tool-panel.css"></style>

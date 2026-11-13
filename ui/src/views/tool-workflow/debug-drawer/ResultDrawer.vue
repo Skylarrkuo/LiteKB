@@ -1,272 +1,322 @@
 <template>
   <el-drawer
-    v-if="resultDrawer"
-    v-model="resultDrawer"
-    :title="$t('common.debug')"
-    direction="rtl"
-    :before-close="close"
-    :destroy-on-close="true"
-    :modal="false"
-    size="800px"
-    class="tool-debug-result-drawer"
+    v-model="visible"
+    append-to-body
+    destroy-on-close
+    size="min(740px, 100%)"
+    :title="t('views.tool.toolWorkflow.debugResult')"
   >
-    <template #header>
-      <div class="flex align-center" style="margin-left: -8px">
-        <el-button class="cursor mr-4" link @click.prevent="close">
-          <el-icon :size="20">
-            <Back />
-          </el-icon>
-        </el-button>
-        <h4>{{ $t('views.tool.toolWorkflow.debugResult') }}</h4>
+    <template #header="{ titleId }">
+      <div class="tool-drawer-heading">
+        <el-icon aria-hidden="true"><Tickets /></el-icon>
+        <h2 :id="titleId">{{ t('views.tool.toolWorkflow.debugResult') }}</h2>
       </div>
     </template>
-    <el-tabs v-model="activeName" style="margin-top: -10px">
-      <el-tab-pane label="输出" name="result">
-        <div class="scrollbar-height">
-          <h4 class="title-decoration-1 mb-16 mt-8">回复内容</h4>
-
+    <div class="tool-drawer-body" data-testid="workflow-debug-result">
+      <div
+        v-if="statusText"
+        class="tool-notice"
+        :class="{ failed: record?.state === 'FAILURE' }"
+        role="status"
+        data-testid="workflow-debug-status"
+      >
+        {{ statusText }}
+      </div>
+      <div v-if="streamError" class="tool-notice failed" role="alert">
+        {{ streamError }}
+        <el-button v-if="retryInput" link type="primary" @click="retryContinuation">{{
+          t('views.tool.library.retry')
+        }}</el-button>
+      </div>
+      <div v-if="recordError" class="tool-notice failed" role="alert">{{ recordError }}</div>
+      <el-button
+        v-if="chat.record_id && !streamBusy"
+        class="refresh"
+        :loading="recordBusy"
+        data-testid="workflow-debug-refresh"
+        @click="readRecord"
+        >{{ t('views.tool.debugPanel.refreshRecord') }}</el-button
+      >
+      <el-tabs v-model="tab">
+        <el-tab-pane :label="t('views.tool.form.debug.output')" name="output">
           <AnswerContent
-            :application="details"
-            :loading="loading"
-            v-model:chat-record="currentChat"
+            v-if="streamBusy || renderBusy || chat.answer_text_list.some((row) => row.length)"
+            v-model:chat-record="chat"
+            :application="presentation"
+            :loading="streamBusy || renderBusy"
             type="ai-chat"
             :send-message="sendMessage"
-            :chat-management="ChatManagement"
-            :executionIsRightPanel="false"
-            @open-execution-detail="() => {}"
-            @openParagraph="() => {}"
-            @openParagraphDocument="() => {}"
+            :chat-management="answerControls"
+            :execution-is-right-panel="false"
             :selection="true"
-          ></AnswerContent>
-          <div v-if="toolRecord">
-            <h4 class="title-decoration-1 mb-16 mt-16">输出参数</h4>
-            <div class="mb-16" v-if="isSuccess !== undefined">
-              <el-alert
-                v-if="isSuccess"
-                :title="$t('views.tool.form.debug.runSuccess')"
-                type="success"
-                show-icon
-                :closable="false"
-              />
-              <el-alert
-                v-else
-                :title="$t('views.tool.form.debug.runFailed')"
-                type="error"
-                show-icon
-                :closable="false"
-              />
-            </div>
-            <el-card
-              style="overflow: auto"
-              :class="isSuccess ? '' : 'color-danger'"
-              class="pre-wrap"
-              shadow="never"
-            >
-              {{ output }}
-            </el-card>
-          </div>
-        </div>
-      </el-tab-pane>
-      <el-tab-pane label="执行详情" name="executionDetails">
-        <el-scrollbar>
-          <div class="scrollbar-height">
-            <template
-              v-for="(item, index) in arraySort(executionDetails ?? [], 'index')"
-              :key="index"
-            >
-              <ExecutionDetailCard :data="item"> </ExecutionDetailCard>
-            </template>
-          </div>
-        </el-scrollbar>
-      </el-tab-pane>
-    </el-tabs>
+          />
+          <section
+            v-if="record && record.meta && 'output' in record.meta"
+            class="tool-result"
+            data-testid="workflow-debug-output"
+          >
+            <h3>{{ t('common.param.outputParam') }}</h3>
+            <pre>{{ formatOutput(record.meta.output) }}</pre>
+          </section>
+        </el-tab-pane>
+        <el-tab-pane :label="t('common.ExecutionRecord.title')" name="details">
+          <ExecutionDetailCard
+            v-for="(node, index) in steps"
+            :key="node.runtime_node_id || index"
+            :data="node"
+          />
+          <p v-if="!steps.length" class="tool-hint">{{ t('runTrace.noSteps') }}</p>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+    <template #footer
+      ><el-button @click="close">{{ t('views.tool.debugPanel.backToInputs') }}</el-button></template
+    >
   </el-drawer>
 </template>
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Tickets } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { randomId } from '@/utils/common'
 import { ChatManagement, type chatType } from '@/api/type/application'
-import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
-import { t } from '@/locales'
 import AnswerContent from '@/components/ai-chat/component/answer-content/index.vue'
 import ExecutionDetailCard from '@/components/execution-detail-card/index.vue'
-import { arraySort } from '@/utils/array'
-import { getWrite } from '@/utils/chat'
+import { t } from '@/locales'
+import { randomId } from '@/utils/common'
+import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
+import { errorMessage, formatOutput } from '@/views/tool/component/tool-debug'
+import { readWorkflowEvents, type WorkflowFrame } from './stream'
 
-const route = useRoute()
-const {
-  params: { folderId },
-  /*
-  folderId 可以区分 resource-management shared还是 workspace
-  */
-} = route as any
-const isShared = computed(() => {
-  return folderId === 'share'
-})
-const apiType = computed(() => {
-  if (route.path.includes('shared')) {
-    return 'systemShare'
-  } else if (route.path.includes('resource-management')) {
-    return 'systemManage'
-  } else if (route.path.includes('share/')) {
-    return 'workspaceShare'
-  } else {
-    return 'workspace'
-  }
-})
-const details = {
-  show_avatar: false,
-  show_user_avatar: false,
+interface NodeDetail {
+  index?: number
+  type?: string
+  is_submit?: boolean
+  runtime_node_id?: string
+  [key: string]: any
 }
-const activeName = ref<string>('result')
-const currentToolId = ref<string>()
-const currentData = ref<any>({})
-const emit = defineEmits(['close'])
-const output = computed(() => {
-  if (toolRecord.value) {
-    return toolRecord.value.meta.output
-  }
-  return {}
-})
-
-const executionDetails = computed(() => {
-  if (toolRecord.value) {
-    return Object.values(toolRecord.value.meta.details)
-  }
-  return []
-})
-
-const isSuccess = computed(() => {
-  if (toolRecord.value) {
-    return toolRecord.value.state == 'FAILURE' ? false : true
-  }
-  return undefined
-})
-
-const toolRecord = ref<any>()
-
-const execute = (toolId: string, data: any) => {
-  currentToolId.value = toolId
-  currentData.value = data
-  ChatManagement.addChatRecord(currentChat, 50, loading)
-  ChatManagement.write(currentChat.id)
-  return loadSharedApi({ type: 'tool', isShared: isShared.value, systemType: apiType.value })
-    .debugToolWorkflow(toolId, data)
-    .then((response: any) => {
-      if (response.status === 460) {
-        return Promise.reject(t('aiChat.tip.errorIdentifyMessage'))
-      } else if (response.status === 461) {
-        return Promise.reject(t('aiChat.tip.errorLimitMessage'))
-      } else {
-        const reader = response.body.getReader()
-        // 处理流数据
-        const write = getWrite(
-          currentChat,
-          reader,
-          response.headers.get('Content-Type') !== 'application/json',
-        )
-        return write()
-      }
-    })
-    .finally(() => {
-      getToolRecord()
-      ChatManagement.close(currentChat.id)
-    })
-    .catch((e: any) => {
-      console.log(e)
-    })
+interface ToolRecord {
+  state: string
+  meta?: { output?: unknown; details?: Record<string, NodeDetail> }
 }
-const loading = ref<boolean>(false)
-const currentChat = reactive<any>({
-  id: randomId(),
-  answer_text_list: [[]],
-  buffer: [],
-  reasoning_content: '',
-  reasoning_content_buffer: [],
-  write_ed: false,
-  is_stop: false,
-  record_id: '',
-  chat_id: '',
-  vote_status: '-1',
-  status: undefined,
-})
-
-const sendMessage = (val: string, other_params_data?: any, chat?: chatType) => {
-  loadSharedApi({ type: 'tool', isShared: isShared.value, systemType: apiType.value })
-    .debugToolWorkflow(currentToolId.value, { ...other_params_data, ...currentData.value })
-    .then((response: any) => {
-      if (response.status === 460) {
-        return Promise.reject(t('aiChat.tip.errorIdentifyMessage'))
-      } else if (response.status === 461) {
-        return Promise.reject(t('aiChat.tip.errorLimitMessage'))
-      } else {
-        const reader = response.body.getReader()
-        // 处理流数据
-        const write = getWrite(
-          currentChat,
-          reader,
-          response.headers.get('Content-Type') !== 'application/json',
-        )
-        return write()
-      }
-    })
-    .finally(() => {
-      ChatManagement.close(currentChat.id)
-      getToolRecord()
-    })
-    .catch((e: any) => {
-      console.log(e)
-    })
-  return Promise.resolve(true)
-}
-const getToolRecord = () => {
-  loadSharedApi({
-    type: 'tool',
-    isShared: isShared.value,
-    systemType: apiType.value,
-  })
-    .getToolRecordDetail(currentToolId.value, currentChat.record_id)
-    .then((ok: any) => {
-      toolRecord.value = ok.data
-    })
-}
-
-const resultDrawer = ref<boolean>(false)
-const open = (toolId: string, data: any) => {
-  resultDrawer.value = true
-  execute(toolId, data)
-}
-const close = () => {
-  ChatManagement.close(currentChat.id)
-  emit('close')
-  resultDrawer.value = false
-  toolRecord.value = null
-  currentChat.value = {
+type Input = Record<string, unknown>
+function newChat(): chatType {
+  return {
     id: randomId(),
+    problem_text: '',
+    answer_text: '',
     answer_text_list: [[]],
     buffer: [],
-    reasoning_content: '',
-    reasoning_content_buffer: [],
+    execution_details: [],
     write_ed: false,
     is_stop: false,
     record_id: '',
     chat_id: '',
     vote_status: '-1',
-    status: undefined,
   }
 }
+const route = useRoute()
+const api = computed(() =>
+  loadSharedApi({
+    type: 'tool',
+    isShared: route.params.folderId === 'share',
+    systemType: route.path.includes('shared')
+      ? 'systemShare'
+      : route.path.includes('resource-management')
+        ? 'systemManage'
+        : route.path.includes('share/')
+          ? 'workspaceShare'
+          : 'workspace',
+  }),
+)
+const emit = defineEmits<{ close: [] }>()
+const presentation = { show_avatar: false, show_user_avatar: false }
+const visible = ref(false),
+  streamBusy = ref(false),
+  renderBusy = ref(false),
+  recordBusy = ref(false)
+const toolId = ref(''),
+  initialInput = ref<Input>({}),
+  retryInput = ref<Input>()
+const chat = ref(newChat()),
+  record = ref<ToolRecord>(),
+  tab = ref('output')
+const streamError = ref(''),
+  recordError = ref('')
+const steps = computed(() =>
+  Object.values(record.value?.meta?.details || {}).sort(
+    (left, right) => (left.index ?? Infinity) - (right.index ?? Infinity),
+  ),
+)
+const statusText = computed(() => {
+  if (streamBusy.value) return t('runTrace.states.running')
+  if (recordBusy.value && !record.value) return t('views.tool.debugPanel.loadingRecord')
+  if (!record.value) return ''
+  if (
+    record.value.state === 'SUCCESS' &&
+    steps.value.some((n) => n.type === 'form-node' && n.is_submit === false)
+  )
+    return t('runTrace.states.waiting_input')
+  const states: Record<string, string> = {
+    SUCCESS: 'succeeded',
+    FAILURE: 'failed',
+    PENDING: 'queued',
+    STARTED: 'running',
+    REVOKED: 'cancelled',
+  }
+  const state = record.value.state
+  return states[state] ? t('runTrace.states.' + states[state]) : state
+})
+let revision = 0
+let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+const answerControls = {
+  // The drawer owns the writer during form continuation; inline chat controls may pause/resume it.
+  stop: (id: string) => ChatManagement.stop(id),
+  open: (id: string) => {
+    if (streamBusy.value && ChatManagement.isStop(id)) ChatManagement.open(id)
+  },
+  write: (id: string) => {
+    const writer = ChatManagement.chatMessageContainer[id]
+    if (streamBusy.value && writer && !writer.is_close && !renderBusy.value)
+      ChatManagement.write(id)
+  },
+}
+function clearStream() {
+  ++revision
+  reader?.cancel().catch(() => {})
+  reader = undefined
+  ChatManagement.stop(chat.value.id)
+  delete ChatManagement.chatMessageContainer[chat.value.id]
+  streamBusy.value = false
+  renderBusy.value = false
+  recordBusy.value = false
+}
+function close() {
+  visible.value = false
+}
+watch(
+  visible,
+  (show) => {
+    if (!show) {
+      clearStream()
+      emit('close')
+    }
+  },
+  { flush: 'sync' },
+)
+onBeforeUnmount(clearStream)
 
+async function readRecord() {
+  if (recordBusy.value || !chat.value.record_id) return
+  const session = revision
+  recordBusy.value = true
+  recordError.value = ''
+  try {
+    const result = await api.value.getToolRecordDetail(toolId.value, chat.value.record_id)
+    if (!result.data?.state) throw new Error(t('views.tool.debugPanel.recordError'))
+    if (session === revision) record.value = result.data
+  } catch (e) {
+    if (session === revision)
+      recordError.value = errorMessage(e, t('views.tool.debugPanel.recordError'))
+  } finally {
+    if (session === revision) recordBusy.value = false
+  }
+}
+function applyFrame(frame: WorkflowFrame) {
+  if (frame.chat_id) chat.value.chat_id = frame.chat_id
+  if (frame.chat_record_id || frame.id) chat.value.record_id = (frame.chat_record_id || frame.id)!
+  if (!frame.is_end && typeof frame.content === 'string')
+    ChatManagement.appendChunk(
+      chat.value.id,
+      frame as Parameters<typeof ChatManagement.appendChunk>[1],
+    )
+  else if (frame.content) ChatManagement.append(chat.value.id, frame.content)
+}
+async function execute(inputs: Input, continuation = false): Promise<boolean> {
+  if (streamBusy.value || !visible.value) return false
+  const session = ++revision
+  streamBusy.value = true
+  recordBusy.value = false
+  streamError.value = ''
+  recordError.value = ''
+  retryInput.value = undefined
+  record.value = undefined
+  const row = chat.value
+  ChatManagement.stop(row.id)
+  ChatManagement.addChatRecord(row, 25, renderBusy)
+  ChatManagement.write(row.id)
+  try {
+    const response: Response = await api.value.debugToolWorkflow(toolId.value, inputs)
+    if (session !== revision) {
+      await response.body?.cancel()
+      return false
+    }
+    if (!response.ok || response.headers.get('content-type')?.includes('json')) {
+      const body = await response.json().catch(() => null)
+      if (session !== revision) return false
+      if (!response.ok || (body?.code !== undefined && body.code !== 200) || !body)
+        throw new Error(
+          body?.message ||
+            body?.detail ||
+            (response.ok ? t('views.tool.debugPanel.interrupted') : 'HTTP ' + response.status),
+        )
+      applyFrame({ ...body.data, is_end: true })
+    } else {
+      const stream = response.body?.getReader()
+      if (!stream) throw new Error(t('views.tool.debugPanel.interrupted'))
+      reader = stream
+      try {
+        const ended = await readWorkflowEvents(stream, (frame) => {
+          if (session === revision) applyFrame(frame)
+        })
+        if (!ended) throw new Error(t('views.tool.debugPanel.interrupted'))
+      } finally {
+        if (reader === stream) reader = undefined
+        stream.releaseLock()
+      }
+    }
+    if (!row.record_id) throw new Error(t('views.tool.debugPanel.recordError'))
+    return true
+  } catch (e) {
+    if (session === revision) {
+      streamError.value = errorMessage(e, t('views.tool.debugPanel.interrupted'))
+      // A form cannot submit itself twice; keep its payload for an explicit retry.
+      if (continuation) retryInput.value = inputs
+    }
+    return false
+  } finally {
+    if (session === revision) {
+      streamBusy.value = false
+      ChatManagement.close(row.id)
+      if (row.record_id) await readRecord()
+    }
+  }
+}
+function sendMessage(_question: string, params?: Input) {
+  return execute({ ...initialInput.value, ...params }, true)
+}
+function retryContinuation() {
+  if (retryInput.value) execute(retryInput.value, true)
+}
+function open(id: string, data: Input) {
+  clearStream()
+  toolId.value = id
+  initialInput.value = data
+  chat.value = newChat()
+  tab.value = 'output'
+  visible.value = true
+  void execute(data)
+}
 defineExpose({ open, close })
 </script>
-<style lang="scss" scoped>
-.tool-debug-result-drawer {
-  .el-drawer__body {
-    padding: 16px !important;
-  }
-  .scrollbar-height {
-    max-height: calc(100vh - 134px);
-    overflow: auto;
-  }
+<style scoped src="../../tool/component/tool-panel.css"></style>
+<style scoped>
+.refresh {
+  justify-self: start;
+}
+.tool-result {
+  margin-top: 12px;
+}
+.tool-drawer-body :deep(.el-tabs__content) {
+  overflow-wrap: anywhere;
 }
 </style>

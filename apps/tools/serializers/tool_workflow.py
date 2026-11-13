@@ -162,14 +162,19 @@ class ToolWorkflowSerializer(serializers.Serializer):
         def debug(self, instance: Dict, user, with_valid=True):
             if with_valid:
                 self.is_valid(raise_exception=True)
-            tool_workflow = QuerySet(ToolWorkflow).filter(tool_id=self.data.get("tool_id")).first()
+            tool_workflow = QuerySet(ToolWorkflow).filter(tool_id=self.data.get("tool_id"),
+                                                          workspace_id=self.data.get("workspace_id")).first()
+            if not tool_workflow:
+                raise AppApiException(404, _("Tool not found"))
             workspace_id = tool_workflow.workspace_id
             tool_record_id = instance.get("chat_record_id") or str(uuid.uuid7())
             took_execute = ToolExecute(self.data.get("tool_id"), tool_record_id, workspace_id, None, None, True)
             record = took_execute.get_record()
+            if record and (str(record.tool_id) != str(self.data.get("tool_id")) or record.workspace_id != workspace_id):
+                raise AppApiException(404, _("Tool record does not exist"))
             # 运行身份取自认证上下文(DB 工作空间 + 登录用户),请求体不得覆盖,
             # 防止低权限用户伪造 workspace_id/user_id 绕过工具引用授权
-            identity_keys = {"workspace_id", "user_id", "chat_user_id", "chat_user_type"}
+            identity_keys = {"workspace_id", "user_id", "chat_user_id", "chat_user_type", "tool_id", "stream"}
             run_params = {
                 "chat_record_id": tool_record_id,
                 "tool_id": self.data.get("tool_id"),

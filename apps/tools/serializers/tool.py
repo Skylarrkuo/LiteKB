@@ -8,8 +8,6 @@ import pickle
 import re
 import subprocess
 import sys
-import tempfile
-import zipfile
 from typing import Dict
 
 import requests
@@ -20,6 +18,7 @@ from common.database_model_manage.database_model_manage import DatabaseModelMana
 from common.db.search import native_page_search, native_search, page_search
 from common.exception.app_exception import AppApiException
 from common.field.common import UploadedImageField
+from common.mcp.sandbox import tool_sandbox_unavailable
 from common.result import result
 from common.utils.common import bytes_to_uploaded_file, common_convert_value, get_file_content
 from common.utils.logger import maxkb_logger
@@ -29,6 +28,7 @@ from common.utils.rsa_util import rsa_long_decrypt, rsa_long_encrypt
 from common.utils.tool_code import ToolExecutor
 from common.utils.url_validator import ALLOWED_CALLBACK_HOSTS, ALLOWED_DOWNLOAD_HOSTS, validate_trusted_url
 from django.core import validators
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Case, CharField, OuterRef, Q, QuerySet, Subquery, Value, When
@@ -47,7 +47,10 @@ from system_manage.serializers.resource_mapping_serializers import ResourceMappi
 from system_manage.serializers.user_resource_permission import UserResourcePermissionSerializer
 from tools.models import Tool, ToolFolder, ToolRecord, ToolScope, ToolType, protect_skill_file
 from tools.models.tool_workflow import ToolWorkflow
-from tools.serializers.init_field import InitField, InitFieldListField, sanitize_init_field_list, validate_init_field_list
+from tools.store_catalog import CATALOG_URL, StoreError, get_catalog, read_remote, resolve_release
+from tools.serializers.init_field import (
+    PASSWORD_MASK, InitField, InitFieldListField, restore_password_defaults, sanitize_init_field_list, validate_init_field_list,
+)
 from trigger.models import Trigger, TriggerTask
 from users.serializers.user import is_workspace_manage, is_workspace_manage_permission_read
 
@@ -120,10 +123,10 @@ def encryption(message: str):
     :param message:
     :return:
     """
-    if type(message) != str:
-        return message
     if message == "":
         return ""
+    if not isinstance(message, str) or len(message) < 5:
+        return "***************"
     max_pre_len = 8
     max_post_len = 4
     message_len = len(message)
@@ -143,6 +146,37 @@ def encryption(message: str):
     )
     content = "***************"
     return pre_str + content + end_str
+
+
+def tool_execution(tool_type):
+    mode = {
+        ToolType.CUSTOM: "python", ToolType.INTERNAL: "python", ToolType.MCP: "mcp", ToolType.WORKFLOW: "workflow",
+    }.get(tool_type, "none")
+    reasons = {
+        "linux_required": _("Tool debugging requires an isolated Linux runtime. You can save parameters on this host."),
+        "sandbox_disabled": _("Enable the isolated tool runtime to debug this tool."),
+        "sandbox_missing": _("The isolated tool runtime library is missing."),
+        "sandbox_identity": _("The isolated tool runtime account is unavailable."),
+        "skill": _("Use this skill through an agent that supports skills."),
+        "data_source": _("Test this data source in a data-source workflow node."),
+        "unsupported": _("This tool type does not support independent debugging."),
+    }
+    reason = ""
+    if mode in ("python", "mcp"):
+        reason = tool_sandbox_unavailable()
+    elif mode == "none":
+        reason = {ToolType.SKILL: "skill", ToolType.DATA_SOURCE: "data_source"}.get(tool_type, "unsupported")
+    return {"debug_mode": mode, "available": not reason, "reason_code": reason, "reason": str(reasons.get(reason, ""))}
+
+
+def check_required_parameters(fields, saved):
+    for field in fields:
+        key = field["field"]
+        value = saved.get(key, field.get("default_value"))
+        if field.get("required") and (
+            value is None or (isinstance(value, str) and not value.strip()) or value == [] or value == {}
+        ):
+            raise serializers.ValidationError(_("Set the required initialization parameter: {name}").format(name=key))
 
 
 def validate_mcp_config(servers: Dict):
@@ -203,7 +237,7 @@ class ToolRecordModelSerializer(serializers.ModelSerializer):
 
 
 class ToolExportModelSerializer(serializers.ModelSerializer):
-    init_field_list = InitFieldListField(read_only=True)
+    init_field_list = InitFieldListField(read_only=True, exporting=True)
 
     class Meta:
         model = Tool
@@ -304,6 +338,44 @@ class AddInternalToolRequest(serializers.Serializer):
 class DebugField(serializers.Serializer):
     name = serializers.CharField(required=True, label=_("variable name"))
     value = serializers.CharField(required=False, allow_blank=True, allow_null=True, label=_("variable value"))
+
+
+class SavedToolDebugRequest(serializers.Serializer):
+    debug_field_list = DebugField(required=False, default=list, many=True)
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and data.keys() - {"debug_field_list"}:
+            raise serializers.ValidationError({"debug_field_list": _("Submit only the runtime input fields.")})
+        return super().to_internal_value(data)
+
+
+class StoreInstallRequest(serializers.Serializer):
+    name = serializers.CharField(required=False, max_length=64)
+    folder_id = serializers.CharField(required=False, max_length=64)
+    version = serializers.CharField(required=False, max_length=64)
+    download_url = serializers.CharField(required=False, max_length=2048)
+
+
+def notify_store_download(release):
+    url = release.get("downloadCallbackUrl")
+    if not url:
+        return
+    try:
+        if validate_trusted_url(url, ALLOWED_CALLBACK_HOSTS):
+            with requests.get(url, timeout=(2, 3), allow_redirects=False, stream=True):
+                pass
+    except (ValueError, requests.RequestException):
+        maxkb_logger.info("Tool store download counter unavailable")
+
+
+def parse_store_package(raw):
+    try:
+        package = RestrictedUnpickler(io.BytesIO(raw)).load()
+        if not isinstance(package, ToolInstance) or not isinstance(package.tool, dict):
+            raise ValueError()
+        return package.tool
+    except (ValueError, AttributeError, TypeError, EOFError, pickle.UnpicklingError):
+        raise AppApiException(400, _("Unsupported file format")) from None
 
 
 class ToolDebugRequest(serializers.Serializer):
@@ -554,23 +626,43 @@ class ToolSerializer(serializers.Serializer):
 
         def debug(self, debug_instance):
             self.is_valid(raise_exception=True)
-            ToolDebugRequest(data=debug_instance).is_valid(raise_exception=True)
-            input_field_list = debug_instance.get("input_field_list")
-            code = debug_instance.get("code")
-            debug_field_list = debug_instance.get("debug_field_list")
-            init_field_list = debug_instance.get("init_field_list", [])
-            init_params = debug_instance.get("init_params")
+            request = ToolDebugRequest(data=debug_instance)
+            request.is_valid(raise_exception=True)
+            data = request.validated_data
+            return self.run_python(data["code"], data["input_field_list"], data["debug_field_list"],
+                                   data["init_field_list"], data["init_params"])
+
+        def debug_saved(self, tool_id, instance):
+            self.is_valid(raise_exception=True)
+            request = SavedToolDebugRequest(data=instance)
+            request.is_valid(raise_exception=True)
+            tool = Tool.objects.filter(id=tool_id, workspace_id=self.validated_data["workspace_id"],
+                                       scope=ToolScope.WORKSPACE).first()
+            if tool is None:
+                raise AppApiException(404, _("Tool not found"))
+            state = tool_execution(tool.tool_type)
+            if not state["available"]:
+                raise AppApiException(400, state["reason"])
+            inputs = request.validated_data["debug_field_list"]
+            if state["debug_mode"] == "mcp" and not inputs:
+                return ToolSerializer.TestConnection(data={"workspace_id": tool.workspace_id,
+                                                           "code": tool.code}).test_connection()
+            if state["debug_mode"] != "python":
+                raise serializers.ValidationError(_("Use the debug action for this tool type."))
+            allowed = {field["name"] for field in tool.input_field_list}
+            submitted = [entry["name"] for entry in inputs]
+            if len(set(submitted)) != len(submitted) or set(submitted) - allowed:
+                raise serializers.ValidationError(_("Unknown or duplicate runtime input field."))
+            init_params = json.loads(rsa_long_decrypt(tool.init_params)) if tool.init_params else {}
+            check_required_parameters(tool.init_field_list, init_params)
+            return self.run_python(tool.code, tool.input_field_list, inputs, tool.init_field_list, init_params)
+
+        def run_python(self, code, input_field_list, debug_field_list, init_field_list, init_params):
             params = {
-                field.get("name"): self.convert_value(
-                    field.get("name"), field.get("value"), field.get("type"), field.get("is_required")
-                )
-                for field in [
-                    {
-                        "value": self.get_field_value(debug_field_list, field.get("name"), field.get("is_required")),
-                        **field,
-                    }
-                    for field in input_field_list
-                ]
+                field["name"]: self.convert_value(
+                    field["name"], self.get_field_value(debug_field_list, field["name"], field.get("is_required")),
+                    field.get("type"), field.get("is_required"),
+                ) for field in input_field_list
             }
             # 合并初始化参数（默认值 → 已保存的启动参数 → 运行时入参）
             init_params_default_value = {i["field"]: i.get('default_value') for i in init_field_list}
@@ -584,11 +676,10 @@ class ToolSerializer(serializers.Serializer):
         @staticmethod
         def get_field_value(debug_field_list, name, is_required):
             result = [field for field in debug_field_list if field.get("name") == name]
-            if len(result) > 0:
-                return result[-1].get("value")
-            if is_required:
+            value = result[-1].get("value") if result else None
+            if is_required and (value is None or (isinstance(value, str) and not value.strip())):
                 raise AppApiException(500, f"{name}" + _("field has no value set"))
-            return None
+            return value
 
         @staticmethod
         def convert_value(name: str, value: str, _type: str, is_required: bool):
@@ -596,7 +687,7 @@ class ToolSerializer(serializers.Serializer):
                 return None
             try:
                 return common_convert_value(_type, value)
-            except Exception as e:
+            except Exception:
                 raise AppApiException(
                     500,
                     _("Field: {name} Type: {type} Value: {value} Type conversion error").format(
@@ -617,9 +708,9 @@ class ToolSerializer(serializers.Serializer):
                 query_set = query_set.filter(workspace_id=workspace_id)
             if not query_set.exists():
                 get_authorized_tool = DatabaseModelManage.get_model("get_authorized_tool")
-                if get_authorized_tool:
-                    if not get_authorized_tool(QuerySet(Tool).filter(id=self.data.get("id")), workspace_id).exists():
-                        raise AppApiException(500, _("Tool id does not exist"))
+                shared = QuerySet(Tool).filter(id=self.data.get("id"), scope=ToolScope.SHARED)
+                if not get_authorized_tool or not get_authorized_tool(shared, workspace_id).exists():
+                    raise AppApiException(404, _("Tool not found"))
 
         def is_valid(self, *, raise_exception=False):
             super().is_valid(raise_exception=True)
@@ -634,14 +725,13 @@ class ToolSerializer(serializers.Serializer):
         def edit(self, instance, with_valid=True):
             if with_valid:
                 self.is_valid(raise_exception=True)
-                ToolEditRequest(data=instance).is_valid(raise_exception=True)
-                # 校验代码是否包括禁止的关键字
-                if instance.get("tool_type") == ToolType.MCP:
-                    ToolExecutor().validate_mcp_transport(instance.get("code", ""))
+                request = ToolEditRequest(data=instance, partial=True)
+                request.is_valid(raise_exception=True)
+                instance = request.validated_data
 
-            if not QuerySet(Tool).filter(
-                id=self.data.get("id"), workspace_id=self.data.get("workspace_id")
-            ).exists():
+            tool = Tool.objects.select_for_update().filter(id=self.data.get("id"),
+                                                           workspace_id=self.data.get("workspace_id")).first()
+            if tool is None:
                 raise serializers.ValidationError(_("Tool not found"))
 
             edit_field_list = [
@@ -663,26 +753,43 @@ class ToolSerializer(serializers.Serializer):
 
             if "init_field_list" in edit_dict:
                 edit_dict["init_field_list"] = validate_init_field_list(edit_dict["init_field_list"])
+                restore_password_defaults(edit_dict["init_field_list"], tool.init_field_list)
 
-            tool = QuerySet(Tool).filter(
-                id=self.data.get("id"), workspace_id=self.data.get("workspace_id")
-            ).first()
+            if "code" in edit_dict and tool.tool_type == ToolType.MCP:
+                ToolExecutor().validate_mcp_transport(edit_dict["code"])
             if tool.tool_type == ToolType.SKILL and "code" in edit_dict and tool.code != edit_dict["code"]:
                 get_owned_upload(edit_dict["code"], self.data.get("user_id"))
-            if "init_params" in edit_dict:
-                if edit_dict["init_field_list"] is not None:
-                    rm_key = []
-                    for key in edit_dict["init_params"]:
-                        if key not in [field["field"] for field in edit_dict["init_field_list"]]:
-                            rm_key.append(key)
-                    for key in rm_key:
-                        edit_dict["init_params"].pop(key)
-                if tool.init_params:
-                    old_init_params = json.loads(rsa_long_decrypt(tool.init_params))
-                    for key in edit_dict["init_params"]:
-                        if key in old_init_params and edit_dict["init_params"][key] == encryption(old_init_params[key]):
-                            edit_dict["init_params"][key] = old_init_params[key]
-                edit_dict["init_params"] = rsa_long_encrypt(json.dumps(edit_dict["init_params"]))
+            if "folder_id" in edit_dict and not ToolFolder.objects.filter(
+                id=edit_dict["folder_id"], workspace_id=tool.workspace_id,
+            ).exists():
+                raise serializers.ValidationError(_("Folder not found"))
+            configuring = "init_field_list" in edit_dict or "init_params" in edit_dict
+            enabling = edit_dict.get("is_active", tool.is_active if configuring else False)
+            if configuring or enabling:
+                fields = edit_dict.get("init_field_list", tool.init_field_list)
+                old = json.loads(rsa_long_decrypt(tool.init_params)) if tool.init_params else {}
+                supplied = edit_dict.get("init_params", {})
+                saved = {}
+                for field in fields:
+                    key = field["field"]
+                    if key not in supplied and key not in old:
+                        continue
+                    value = supplied.get(key, old.get(key))
+                    if field.get("input_type") == "PasswordInput" and key in old and value == encryption(old[key]):
+                        value = old[key]
+                    elif field.get("input_type") == "PasswordInput" and key not in old and value == PASSWORD_MASK:
+                        # The form displayed the masked field default. Keep using that default.
+                        if field.get("default_value") not in (None, ""):
+                            continue
+                    saved[key] = value
+                if enabling:
+                    check_required_parameters(fields, saved)
+                    if tool.tool_type == ToolType.WORKFLOW and not ToolWorkflow.objects.filter(
+                        tool_id=tool.id, workspace_id=tool.workspace_id, is_publish=True,
+                    ).exists():
+                        raise serializers.ValidationError(_("Publish the workflow before enabling this tool."))
+                if configuring:
+                    edit_dict["init_params"] = rsa_long_encrypt(json.dumps(saved)) if saved else None
 
             edit_dict["update_time"] = timezone.now()
             if "code" in edit_dict and tool.code != edit_dict["code"]:
@@ -690,9 +797,9 @@ class ToolSerializer(serializers.Serializer):
             QuerySet(Tool).filter(
                 id=self.data.get("id"), workspace_id=self.data.get("workspace_id")
             ).update(**edit_dict)
-            if "is_active" in instance:
+            if "is_active" in edit_dict:
                 QuerySet(TriggerTask).filter(source_type="TOOL", source_id=self.data.get("id")).update(
-                    is_active=instance.get("is_active")
+                    is_active=edit_dict["is_active"]
                 )
 
             # 如果是SKILL类型的工具，修改file表中对应的记录
@@ -753,7 +860,7 @@ class ToolSerializer(serializers.Serializer):
                 password_fields = [i["field"] for i in tool.init_field_list if i.get("input_type") == "PasswordInput"]
                 if tool.init_params:
                     for k in tool.init_params:
-                        if k in password_fields and tool.init_params[k]:
+                        if k in password_fields and tool.init_params[k] is not None:
                             tool.init_params[k] = encryption(tool.init_params[k])
             if tool.tool_type == "SKILL":
                 skill_file = QuerySet(File).filter(id=tool.code).first()
@@ -783,6 +890,7 @@ class ToolSerializer(serializers.Serializer):
                 "work_flow": work_flow,
                 "default_model_setting": default_model_setting,
                 "is_publish": is_publish,
+                "execution": tool_execution(tool.tool_type),
             }
 
         def get_child_tool_list(self, work_flow, response):
@@ -1059,7 +1167,7 @@ class ToolSerializer(serializers.Serializer):
             tool_instance_bytes = self.data.get("file").read()
             try:
                 tool_instance = RestrictedUnpickler(io.BytesIO(tool_instance_bytes)).load()
-            except Exception as e:
+            except Exception:
                 raise AppApiException(1001, _("Unsupported file format"))
             tool = tool_instance.tool
             tool["id"] = tool_id
@@ -1075,19 +1183,14 @@ class ToolSerializer(serializers.Serializer):
 
         @transaction.atomic
         def import_(self, scope=ToolScope.WORKSPACE, name=None, source=None):
-            self.is_valid()
-
-            user_id = self.data.get("user_id")
-            tool_instance_bytes = self.data.get("file").read()
-            try:
-                tool_instance = RestrictedUnpickler(io.BytesIO(tool_instance_bytes)).load()
-            except Exception as e:
-                raise AppApiException(1001, _("Unsupported file format"))
-            if self.data.get("folder_id") is None:
-                folder_id = self.data.get("workspace_id")
-            else:
-                folder_id = self.data.get("folder_id")
-            tool = tool_instance.tool
+            self.is_valid(raise_exception=True)
+            workspace_id = self.validated_data["workspace_id"]
+            user_id = self.validated_data["user_id"]
+            folder_id = self.validated_data.get("folder_id") or workspace_id
+            if scope == ToolScope.WORKSPACE:
+                if not ToolFolder.objects.filter(pk=folder_id, workspace_id=workspace_id).exists():
+                    raise AppApiException(400, _("Folder not found"))
+            tool = parse_store_package(self.validated_data["file"].read())
             tool_id = uuid.uuid7()
             code = tool.get("code")
             if tool.get("tool_type") == ToolType.SKILL:
@@ -1107,7 +1210,7 @@ class ToolSerializer(serializers.Serializer):
                 desc=tool.get("desc"),
                 code=code,
                 user_id=user_id,
-                workspace_id=self.data.get("workspace_id"),
+                workspace_id=workspace_id,
                 input_field_list=tool.get("input_field_list"),
                 init_field_list=validate_init_field_list(tool.get("init_field_list", [])),
                 tool_type=tool.get("tool_type"),
@@ -1247,183 +1350,98 @@ class ToolSerializer(serializers.Serializer):
 
     class StoreTool(serializers.Serializer):
         user_id = serializers.UUIDField(required=True, label=_("User ID"))
-        name = serializers.CharField(required=False, label=_("tool name"), allow_null=True, allow_blank=True)
+        name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
         def get_appstore_tools(self):
             self.is_valid(raise_exception=True)
-            # 下载zip文件
-            try:
-                appstore_url = CONFIG.get("APPSTORE_URL", "https://apps-assets.fit2cloud.com/stable/maxkb.json.zip")
-                res = requests.get(appstore_url, timeout=5)
-                res.raise_for_status()
-                # 创建临时文件保存zip
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as temp_zip:
-                    temp_zip.write(res.content)
-                    temp_zip_path = temp_zip.name
-
-                try:
-                    # 解压zip文件
-                    with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
-                        # 获取zip中的第一个文件（假设只有一个json文件）
-                        json_filename = zip_ref.namelist()[0]
-                        json_content = zip_ref.read(json_filename)
-
-                    # 将json转换为字典
-                    tool_store = json.loads(json_content.decode("utf-8"))
-                    tag_dict = {tag["name"]: tag["key"] for tag in tool_store["additionalProperties"]["tags"]}
-                    filter_apps = []
-                    for tool in tool_store["apps"]:
-                        if self.data.get("name", "") != "":
-                            if self.data.get("name").lower() not in tool.get("name", "").lower():
-                                continue
-                        if not tool["downloadUrl"].endswith(".tool"):
-                            continue
-                        versions = tool.get("versions", [])
-                        tool["label"] = tag_dict[tool.get("tags")[0]] if tool.get("tags") else ""
-                        tool["version"] = next(
-                            (
-                                version.get("name")
-                                for version in versions
-                                if version.get("downloadUrl") == tool["downloadUrl"]
-                            ),
-                        )
-                        filter_apps.append(tool)
-
-                    tool_store["apps"] = filter_apps
-                    return tool_store
-                finally:
-                    # 清理临时文件
-                    os.unlink(temp_zip_path)
-            except Exception as e:
-                maxkb_logger.error(f"fetch appstore tools error: {e}")
-                return {"apps": [], "additionalProperties": {"tags": []}}
+            return get_catalog(CONFIG.get("APPSTORE_URL", CATALOG_URL), self.validated_data.get("name") or "")
 
     class AddStoreTool(serializers.Serializer):
-        user_id = serializers.UUIDField(required=True, label=_("User ID"))
-        workspace_id = serializers.CharField(required=True, label=_("workspace id"))
-        tool_id = serializers.CharField(required=True, label=_("tool id"))
+        user_id = serializers.UUIDField(required=True)
+        workspace_id = serializers.CharField(required=True)
+        tool_id = serializers.CharField(required=True)
 
-        def add(self, instance: Dict, with_valid=True):
-            if with_valid:
-                self.is_valid(raise_exception=True)
-                AddInternalToolRequest(data=instance).is_valid(raise_exception=True)
-
-            versions = instance.get("versions", [])
-            download_url = instance.get("download_url")
-            if not validate_trusted_url(download_url, ALLOWED_DOWNLOAD_HOSTS):
-                raise AppApiException(500, _("Illegal download url"))
-            # 查找匹配的版本名称
-            version_name = next(
-                (version.get("name") for version in versions if version.get("downloadUrl") == download_url),
-            )
-            res = requests.get(download_url, timeout=5, allow_redirects=False)
-            tool_data = RestrictedUnpickler(io.BytesIO(res.content)).load().tool
-            tool_id = uuid.uuid7()
-            # 如果是SKILL类型的工具，保存文件内容到file表，并将code替换为file_id
-            if tool_data.get("tool_type") == ToolType.SKILL:
-                skill_file_id = uuid.uuid7()
-                skill_file = File(
-                    id=skill_file_id,
-                    file_name=f"{tool_data.get('name')}.zip",
-                    source_type=FileSourceType.TOOL,
-                    source_id=tool_id,
-                    meta={"skill_file": True},
-                )
-                skill_file.save(base64.b64decode(tool_data.get("code")))
-                tool_data["code"] = skill_file_id
-            tool = Tool(
-                id=tool_id,
-                name=instance.get("name"),
-                desc=tool_data.get("desc"),
-                code=tool_data.get("code"),
-                user_id=self.data.get("user_id"),
-                icon=instance.get("icon", ""),
-                workspace_id=self.data.get("workspace_id"),
-                input_field_list=tool_data.get("input_field_list", []),
-                init_field_list=validate_init_field_list(tool_data.get("init_field_list", [])),
-                scope=ToolScope.WORKSPACE,
-                tool_type=tool_data.get("tool_type", ToolType.CUSTOM),
-                folder_id=instance.get("folder_id", self.data.get("workspace_id")),
-                template_id=self.data.get("tool_id"),
-                label=instance.get("label"),
-                version=version_name,
-                is_active=False,
-            )
-            tool.save()
-
-            # 自动授权给创建者
-            UserResourcePermissionSerializer(
-                data={
-                    "workspace_id": self.data.get("workspace_id"),
-                    "user_id": self.data.get("user_id"),
-                    "auth_target_type": AuthTargetType.TOOL.value,
-                }
-            ).auth_resource(str(tool_id))
-            try:
-                download_callback_url = instance.get("download_callback_url")
-                if not validate_trusted_url(download_callback_url, ALLOWED_CALLBACK_HOSTS):
-                    raise AppApiException(500, _("Illegal download callback url"))
-                requests.get(download_callback_url, timeout=5, allow_redirects=False)
-            except Exception as e:
-                maxkb_logger.error(f"callback appstore tool download error: {e}")
+        def add(self, instance):
+            self.is_valid(raise_exception=True)
+            req = StoreInstallRequest(data=instance)
+            req.is_valid(raise_exception=True)
+            workspace = self.validated_data["workspace_id"]
+            folder_id = req.validated_data.get("folder_id") or workspace
+            folders = ToolFolder.objects.filter(id=folder_id, workspace_id=workspace)
+            if not folders.exists():
+                raise StoreError(404, _("Folder not found"))
+            item, release = resolve_release(get_catalog(CONFIG.get("APPSTORE_URL", CATALOG_URL)),
+                                            self.validated_data["tool_id"], req.validated_data.get("version"),
+                                            req.validated_data.get("download_url"))
+            name = req.validated_data.get("name") or item["name"]
+            if len(name) > 64:
+                raise serializers.ValidationError(_("Tool name must be at most 64 characters"))
+            file = SimpleUploadedFile("store.tool", read_remote(release["downloadUrl"], 32 * 1024 * 1024))
+            with transaction.atomic():
+                # Serialise concurrent imports into the same folder, including a retried request after a timeout.
+                if not folders.select_for_update().first():
+                    raise StoreError(404, _("Folder not found"))
+                if Tool.objects.filter(workspace_id=workspace, folder_id=folder_id, name=name).exists():
+                    raise StoreError(409, _("A tool with this name already exists in this folder"))
+                importer = ToolSerializer.Import(data={"file": file, "user_id": self.validated_data["user_id"],
+                                                       "workspace_id": workspace, "folder_id": folder_id})
+                created = importer.import_(scope=ToolScope.WORKSPACE, name=name, source="template")
+                tool = Tool.objects.get(pk=created["id"], workspace_id=workspace)
+                tool.template_id, tool.version = item["id"], release["name"]
+                tool.label, tool.icon = item["label"], item["icon"]
+                tool.save(update_fields=["template_id", "version", "label", "icon"])
+            notify_store_download(release)
             return ToolModelSerializer(tool).data
 
     class UpdateStoreTool(serializers.Serializer):
-        user_id = serializers.UUIDField(required=True, label=_("User ID"))
-        workspace_id = serializers.CharField(required=True, label=_("workspace id"))
-        tool_id = serializers.UUIDField(required=True, label=_("tool id"))
-        download_url = serializers.CharField(required=True, label=_("download url"))
-        download_callback_url = serializers.CharField(required=True, label=_("download callback url"))
-        icon = serializers.CharField(required=True, label=_("icon"), allow_null=True, allow_blank=True)
-        versions = serializers.ListField(required=True, label=_("versions"), child=serializers.DictField())
+        user_id = serializers.UUIDField(required=True)
+        workspace_id = serializers.CharField(required=True)
+        tool_id = serializers.UUIDField(required=True)
 
-        def update_tool(self, with_valid=True):
-            if with_valid:
-                self.is_valid(raise_exception=True)
-            if not validate_trusted_url(self.data.get("download_url"), ALLOWED_DOWNLOAD_HOSTS):
-                raise AppApiException(500, _("Illegal download url"))
-            tool = QuerySet(Tool).filter(
-                id=self.data.get("tool_id"), workspace_id=self.data.get("workspace_id")
-            ).first()
-            if tool is None:
-                raise AppApiException(500, _("Tool does not exist"))
-            # 查找匹配的版本名称
-            version_name = next(
-                (
-                    version.get("name")
-                    for version in self.data.get("versions")
-                    if version.get("downloadUrl") == self.data.get("download_url")
-                ),
-            )
-            res = requests.get(self.data.get("download_url"), timeout=5, allow_redirects=False)
-            tool_data = RestrictedUnpickler(io.BytesIO(res.content)).load().tool
-            # 如果是SKILL类型的工具，保存文件内容到file表，并将code替换为file_id
-            if tool_data.get("tool_type") == ToolType.SKILL:
-                skill_file_id = uuid.uuid7()
-                skill_file = File(
-                    id=skill_file_id,
-                    file_name=f"{tool_data.get('name')}.zip",
-                    source_type=FileSourceType.TOOL,
-                    source_id=tool.id,
-                    meta={"skill_file": True},
-                )
-                skill_file.save(base64.b64decode(tool_data.get("code")))
-                tool_data["code"] = skill_file_id
-            tool.desc = tool_data.get("desc")
-            tool.code = tool_data.get("code")
-            tool.input_field_list = tool_data.get("input_field_list", [])
-            tool.init_field_list = validate_init_field_list(tool_data.get("init_field_list", []))
-            tool.icon = self.data.get("icon", tool.icon)
-            tool.version = version_name
-            # tool.is_active = False
-            tool.save()
-            try:
-                download_callback_url = self.data.get("download_callback_url")
-                if not validate_trusted_url(download_callback_url, ALLOWED_CALLBACK_HOSTS):
-                    raise AppApiException(500, _("Illegal download callback url"))
-                requests.get(download_callback_url, timeout=5, allow_redirects=False)
-            except Exception as e:
-                maxkb_logger.error(f"callback appstore tool download error: {e}")
+        def update_tool(self, instance):
+            self.is_valid(raise_exception=True)
+            req = StoreInstallRequest(data=instance)
+            req.is_valid(raise_exception=True)
+            workspace = self.validated_data["workspace_id"]
+            tools = Tool.objects.filter(id=self.validated_data["tool_id"], workspace_id=workspace, scope=ToolScope.WORKSPACE)
+            target = tools.first()
+            if not target:
+                raise StoreError(404, _("Tool not found"))
+            item, release = resolve_release(get_catalog(CONFIG.get("APPSTORE_URL", CATALOG_URL)), target.template_id,
+                                            req.validated_data.get("version"), req.validated_data.get("download_url"))
+            if target.version == release["name"]:
+                return ToolModelSerializer(target).data
+            raw = read_remote(release["downloadUrl"], 32 * 1024 * 1024)
+            data = parse_store_package(raw)
+            with transaction.atomic():
+                tool = tools.select_for_update().first()
+                if not tool or tool.template_id != item["id"]:
+                    raise StoreError(404, _("Tool not found"))
+                if tool.version == release["name"]:
+                    return ToolModelSerializer(tool).data
+                if tool.version != target.version:
+                    raise StoreError(409, _("Tool was updated. Refresh and try again."))
+                if data.get("tool_type", ToolType.CUSTOM) != tool.tool_type:
+                    raise StoreError(400, _("Tool type does not match"))
+                code = data.get("code")
+                if tool.tool_type == ToolType.SKILL:
+                    skill = File(id=uuid.uuid7(), file_name=f"{tool.name}.zip", source_type=FileSourceType.TOOL,
+                                 source_id=tool.id, meta={"skill_file": True})
+                    skill.save(base64.b64decode(code, validate=True))
+                    code = str(skill.id)
+                if tool.tool_type == ToolType.MCP:
+                    ToolExecutor().validate_mcp_transport(code)
+                if tool.tool_type == ToolType.WORKFLOW:
+                    importer = ToolSerializer.Import(data={"file": SimpleUploadedFile("store.tool", raw),
+                                                           "user_id": self.validated_data["user_id"],
+                                                           "workspace_id": workspace, "folder_id": tool.folder_id})
+                    importer.update_template_workflow(str(tool.id))
+                tool.code, tool.desc = code, data.get("desc")
+                tool.input_field_list = data.get("input_field_list") or []
+                tool.init_field_list = validate_init_field_list(data.get("init_field_list") or [])
+                tool.icon, tool.version, tool.label = item["icon"], release["name"], item["label"]
+                tool.save()
+            notify_store_download(release)
             return ToolModelSerializer(tool).data
 
     class ToolRecord(serializers.Serializer):

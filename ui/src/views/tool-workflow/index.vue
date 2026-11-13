@@ -338,6 +338,7 @@ function clickoutside() {
 }
 
 const publish = () => {
+  if (workflowRef.value?.isReadOnly()) return MsgError(t('studio.unavailableNodes'))
   workflowRef.value
     ?.validate()
     .then(() => {
@@ -421,21 +422,12 @@ const importKnowledgeWorkflow = (file: any) => {
     },
   )
     .then(() => {
-      loadSharedApi({ type: 'knowledge', isShared: isShared.value, systemType: apiType.value })
-        .importKnowledgeWorkflow(id, formData, loading)
+      loadSharedApi({ type: 'tool', isShared: isShared.value, systemType: apiType.value })
+        .importToolWorkflow(id, formData, loading)
         .then(() => {
           getDetail()
         })
-        .catch((error: any) => {
-          if (error.code === 400) {
-            MsgConfirm(t('common.tip'), t('views.application.tip.professionalMessage'), {
-              cancelButtonText: t('common.confirm'),
-              confirmButtonText: t('common.professional'),
-            }).then(() => {
-              window.open('https://maxkb.cn/pricing.html', '_blank')
-            })
-          }
-        })
+        .catch(() => {})
     })
     .catch(() => {})
 }
@@ -453,6 +445,7 @@ function exportToolWorkflow(name: string, id: string) {
 }
 
 const clickShowDebug = () => {
+  if (workflowRef.value?.isReadOnly()) return MsgError(t('studio.unavailableNodes'))
   workflowRef.value
     ?.validate()
     .then(() => {
@@ -517,6 +510,7 @@ function getDetail() {
 }
 
 function saveTool(bool?: boolean, back?: boolean) {
+  if (workflowRef.value?.isReadOnly()) return
   const obj = {
     work_flow: getGraphData(),
     default_model_setting: detail.value?.default_model_setting || {},

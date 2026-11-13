@@ -8,6 +8,7 @@ app_name = "tool"
 urlpatterns = [
     path('workspace/internal/tool', views.ToolView.InternalTool.as_view()),
     path('workspace/store/tool', views.ToolView.StoreTool.as_view()),
+    path('workspace/store/tool/<str:tool_id>/download', views.ToolView.DownloadStoreTool.as_view()),
     path('workspace/store/tool_workflow_template', views.StoreToolWorkflowView.as_view()),
     path('workspace/<str:workspace_id>/tool', views.ToolView.as_view()),
     path('workspace/<str:workspace_id>/tool/workflow', views.ToolWorkflowView.as_view()),
@@ -23,6 +24,7 @@ urlpatterns = [
     path('workspace/<str:workspace_id>/tool/<str:tool_id>', views.ToolView.Operate.as_view()),
     path('workspace/<str:workspace_id>/tool/<str:tool_id>/publish', views.ToolWorkflowView.Publish.as_view()),
     path('workspace/<str:workspace_id>/tool/<str:tool_id>/debug', views.ToolWorkflowDebugView.as_view()),
+    path('workspace/<str:workspace_id>/tool/<uuid:tool_id>/debug_saved', views.ToolView.SavedDebug.as_view()),
     path('workspace/<str:workspace_id>/tool/<str:tool_id>/workflow', views.ToolWorkflowView.Operate.as_view()),
     path('workspace/<str:workspace_id>/tool/<str:tool_id>/edit_icon', views.ToolView.EditIcon.as_view()),
     path('workspace/<str:workspace_id>/tool/<str:tool_id>/export', views.ToolView.Export.as_view()),

@@ -4,8 +4,9 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from mcp.types import CallToolResult
 
 from common.mcp.config import InternalMCPConfig, remote_connection, validate_mcp_servers
-from common.mcp.sandbox import sandbox_connection
+from common.mcp.sandbox import prepare_tool_execution, require_linux_sandbox, sandbox_connection
 from maxkb.const import CONFIG
+from litekb_api.run_guard import intercept_mcp
 
 
 class SandboxMCPBackend(MultiServerMCPClient):
@@ -18,7 +19,7 @@ class SandboxMCPBackend(MultiServerMCPClient):
     """
 
     def __init__(self, servers: dict):
-        super().__init__(connections=self._build_connections(servers))
+        super().__init__(connections=self._build_connections(servers), tool_interceptors=[intercept_mcp])
 
     @staticmethod
     def _build_connections(servers: dict) -> dict:
@@ -30,6 +31,7 @@ class SandboxMCPBackend(MultiServerMCPClient):
                 raise ValueError("MCP server configuration must be an object")
             internal = isinstance(config, InternalMCPConfig)
             if internal and config.get("transport") == "stdio":
+                prepare_tool_execution()
                 connections[name] = dict(config)
                 continue
             validate_mcp_servers({name: config})
@@ -38,6 +40,7 @@ class SandboxMCPBackend(MultiServerMCPClient):
             elif bool(int(CONFIG.get("SANDBOX", 1))):
                 connections[name] = sandbox_connection(config)
             else:
+                require_linux_sandbox()
                 connections[name] = remote_connection(config)
         return connections
 

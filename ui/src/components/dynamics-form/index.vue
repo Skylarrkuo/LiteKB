@@ -74,7 +74,7 @@ const show = (field: FormField) => {
     for (const index in keys) {
       const key = keys[index]
       const v = _.get(formValue.value, key)
-      if (v && v !== undefined && v !== null) {
+      if (v !== undefined && v !== null && v !== '') {
         const values = field.relation_show_field_dict[key]
         if (values && values.length > 0) {
           return values.includes(v)
@@ -215,18 +215,13 @@ const getFormDefaultValue = (fieldList: Array<any>, form_data?: any) => {
     .map((item) => {
       if (form_data[item.field] !== undefined) {
         if (item.value_field && item.option_list && item.option_list.length > 0) {
-          const value_field = item.value_field
-          const find = item.option_list?.find((i: any) => {
-            if (typeof form_data[item.field] === 'string') {
-              return i[value_field] === form_data[item.field]
-            } else {
-              return form_data[item.field]
-                ? form_data[item.field].indexOf([value_field]) === -1
-                : false
-            }
-          })
-          if (find) {
-            return { [item.field]: form_data[item.field] }
+          const selected = form_data[item.field]
+          const allowed = new Set(item.option_list.map((option: any) => option[item.value_field]))
+          if (Array.isArray(selected)) {
+            return { [item.field]: selected.filter((value) => allowed.has(value)) }
+          }
+          if (allowed.has(selected)) {
+            return { [item.field]: selected }
           }
           if (item.show_default_value === true || item.show_default_value === undefined) {
             return { [item.field]: item.default_value }

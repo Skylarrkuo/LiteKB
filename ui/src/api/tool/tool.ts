@@ -140,6 +140,12 @@ const postImportTool: (data: any, loading?: Ref<boolean>) => Promise<Result<any>
   return post(`${prefix.value}/import`, data, undefined, loading)
 }
 
+const postSavedToolDebug = (
+  id: string,
+  data: { debug_field_list: { name: string; value?: string | null }[] },
+  loading?: Ref<boolean>,
+) => post(`${prefix.value}/${id}/debug_saved`, data, undefined, loading)
+
 const postPylint: (code: string, loading?: Ref<boolean>) => Promise<Result<any>> = (
   code,
   loading,
@@ -344,6 +350,7 @@ export default {
   getToolById,
   postTool,
   postToolDebug,
+  postSavedToolDebug,
   postImportTool,
   postPylint,
   exportTool,

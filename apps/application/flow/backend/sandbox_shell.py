@@ -6,8 +6,10 @@ import shlex
 from deepagents.backends import LocalShellBackend
 from deepagents.backends.protocol import ExecuteResponse
 
+from common.mcp.sandbox import prepare_tool_execution
 from common.utils.logger import maxkb_logger
 from maxkb.const import CONFIG
+from litekb_api.run_guard import admit_effect, uncertain_effect
 
 _enable_sandbox = bool(int(CONFIG.get("SANDBOX", 1)))
 _run_user = "sandbox" if _enable_sandbox else getpass.getuser()
@@ -251,8 +253,9 @@ class SandboxShellBackend(LocalShellBackend):
         return parts
 
     def _build_sandbox_command(self, command: str) -> str:
+        library = os.path.join(CONFIG.get("SANDBOX_HOME", "/opt/maxkb-app/sandbox"), "lib", "sandbox.so")
         prefix = (
-            "env -i LD_PRELOAD=/opt/maxkb-app/sandbox/lib/sandbox.so "
+            f"env -i LD_PRELOAD={shlex.quote(library)} "
             f'PATH="${{PATH}}" PYTHONPATH="${{PYTHONPATH}}" gosu {_run_user} '
         )
         parts = self._split_shell_command_list(command)
@@ -293,6 +296,11 @@ class SandboxShellBackend(LocalShellBackend):
         *,
         timeout: int | None = None,
     ) -> ExecuteResponse:
+        requested_command = command
+        try:
+            prepare_tool_execution()
+        except (ValueError, OSError) as exc:
+            return ExecuteResponse(output=str(exc), exit_code=1)
         if self.virtual_mode:
             command = self._translate_virtual_paths(command)
 
@@ -308,4 +316,12 @@ class SandboxShellBackend(LocalShellBackend):
             # command = f"runuser -u {_run_user} -- env -i PATH=${{PATH}} {command}"
 
         maxkb_logger.debug(f"Executing command in sandbox: {command}")
-        return super().execute(command=command, timeout=timeout)
+        admit_effect("skill_command", "execute", requested_command)
+        try:
+            response = super().execute(command=command, timeout=timeout)
+        except Exception:
+            uncertain_effect()
+            raise
+        if response.exit_code != 0:
+            uncertain_effect()
+        return response

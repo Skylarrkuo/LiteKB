@@ -5,6 +5,8 @@ from common.constants.permission_constants import CompareConstants, PermissionCo
 from common.database_model_manage.database_model_manage import DatabaseModelManage
 from common.log.log import log
 from django.db.models import QuerySet
+from django.http import HttpResponse
+from django.utils.http import content_disposition_header
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
 from rest_framework.parsers import MultiPartParser
@@ -12,6 +14,8 @@ from rest_framework.request import Request
 from rest_framework.views import APIView
 from tools.api.tool import (
     AddInternalToolAPI,
+    AddStoreToolAPI,
+    DownloadStoreToolAPI,
     EditIconAPI,
     GetInternalToolAPI,
     PylintAPI,
@@ -25,9 +29,13 @@ from tools.api.tool import (
     ToolPageAPI,
     ToolReadAPI,
     ToolTreeReadAPI,
+    UpdateStoreToolAPI,
+    store_write_responses,
 )
 from tools.models import Tool, ToolScope
-from tools.serializers.tool import ToolBatchOperateSerializer, ToolSerializer, ToolTreeSerializer
+from tools.serializers.tool import SavedToolDebugRequest, ToolBatchOperateSerializer, ToolSerializer, ToolTreeSerializer
+from tools.store_catalog import CATALOG_URL, get_catalog, read_remote, resolve_release
+from maxkb.const import CONFIG
 
 
 def get_shared_tool_read_permission(request, kwargs):
@@ -148,6 +156,27 @@ class ToolView(APIView):
                 )
             )
 
+    class SavedDebug(APIView):
+        authentication_classes = [TokenAuth]
+
+        @extend_schema(
+            summary=_("Debug a saved tool"), request=SavedToolDebugRequest, tags=[_("Tool")],
+            parameters=ToolReadAPI.get_parameters(),
+            responses={200: {"type": "object", "properties": {
+                "code": {"type": "integer"}, "message": {"type": "string"}, "data": {"nullable": True},
+            }}},
+        )
+        @has_permissions(
+            PermissionConstants.TOOL_EDIT.get_workspace_tool_permission(),
+            PermissionConstants.TOOL_EDIT.get_workspace_permission_workspace_manage_role(),
+            RoleConstants.WORKSPACE_MANAGE.get_workspace_role(),
+            ViewPermission([RoleConstants.USER.get_workspace_role()],
+                           [PermissionConstants.TOOL.get_workspace_tool_permission()], CompareConstants.AND),
+        )
+        def post(self, request: Request, workspace_id: str, tool_id):
+            debug = ToolSerializer.Debug(data={"workspace_id": workspace_id, "user_id": request.user.id})
+            return result.success(debug.debug_saved(tool_id, request.data))
+
     class Operate(APIView):
         authentication_classes = [TokenAuth]
 
@@ -174,6 +203,7 @@ class ToolView(APIView):
         @log(
             menu="Tool",
             operate="Update tool",
+            get_details=lambda r: {"path": r.path, "fields": sorted(r.data.keys())},
             get_operation_object=lambda r, k: get_tool_operation_object(k.get("tool_id")),
         )
         def put(self, request: Request, workspace_id: str, tool_id: str):
@@ -617,6 +647,7 @@ class ToolView(APIView):
             description=_("Get Appstore tools"),
             summary=_("Get Appstore tools"),
             operation_id=_("Get Appstore tools"),  # type: ignore
+            parameters=GetInternalToolAPI.get_parameters(),
             responses=GetInternalToolAPI.get_response(),
             tags=[_("Tool")],  # type: ignore
         )
@@ -630,6 +661,23 @@ class ToolView(APIView):
                 ).get_appstore_tools()
             )
 
+    class DownloadStoreTool(APIView):
+        authentication_classes = [TokenAuth]
+
+        @extend_schema(
+            summary=_("Download Appstore tool"),
+            tags=[_("Tool")],
+            parameters=DownloadStoreToolAPI.get_parameters(),
+            responses=DownloadStoreToolAPI.get_response(),
+        )
+        def get(self, request: Request, tool_id: str):
+            item, release = resolve_release(get_catalog(CONFIG.get("APPSTORE_URL", CATALOG_URL)), tool_id,
+                                            request.query_params.get("version"))
+            content = read_remote(release["downloadUrl"], 32 * 1024 * 1024)
+            response = HttpResponse(content, content_type="application/octet-stream")
+            response["Content-Disposition"] = content_disposition_header(True, f"{item['id']}-{release['name']}.tool")
+            return response
+
     class AddStoreTool(APIView):
         authentication_classes = [TokenAuth]
 
@@ -638,9 +686,9 @@ class ToolView(APIView):
             description=_("Add Appstore tool"),
             summary=_("Add Appstore tool"),
             operation_id=_("Add Appstore tool"),  # type: ignore
-            parameters=AddInternalToolAPI.get_parameters(),
-            request=AddInternalToolAPI.get_request(),
-            responses=AddInternalToolAPI.get_response(),
+            parameters=AddStoreToolAPI.get_parameters(),
+            request=AddStoreToolAPI.get_request(),
+            responses=store_write_responses,
             tags=[_("Tool")],  # type: ignore
         )
         @has_permissions(
@@ -652,7 +700,7 @@ class ToolView(APIView):
         @log(
             menu="Tool",
             operate="Add Appstore tool",
-            get_operation_object=lambda r, k: get_tool_operation_object(k.get("tool_id")),
+            get_operation_object=lambda r, k: {"name": r.data.get("name") or k.get("tool_id")},
         )
         def post(self, request: Request, tool_id: str, workspace_id: str):
             return result.success(
@@ -673,16 +721,17 @@ class ToolView(APIView):
             description=_("Update Appstore tool"),
             summary=_("Update Appstore tool"),
             operation_id=_("Update Appstore tool"),  # type: ignore
-            parameters=AddInternalToolAPI.get_parameters(),
-            request=AddInternalToolAPI.get_request(),
-            responses=AddInternalToolAPI.get_response(),
+            parameters=UpdateStoreToolAPI.get_parameters(),
+            request=UpdateStoreToolAPI.get_request(),
+            responses=store_write_responses,
             tags=[_("Tool")],  # type: ignore
         )
         @has_permissions(
-            PermissionConstants.TOOL_CREATE.get_workspace_permission(),
-            PermissionConstants.TOOL_CREATE.get_workspace_permission_workspace_manage_role(),
+            PermissionConstants.TOOL_EDIT.get_workspace_tool_permission(),
+            PermissionConstants.TOOL_EDIT.get_workspace_permission_workspace_manage_role(),
             RoleConstants.WORKSPACE_MANAGE.get_workspace_role(),
-            RoleConstants.USER.get_workspace_role(),
+            ViewPermission([RoleConstants.USER.get_workspace_role()],
+                           [PermissionConstants.TOOL.get_workspace_tool_permission()], CompareConstants.AND),
         )
         @log(
             menu="Tool",
@@ -696,10 +745,6 @@ class ToolView(APIView):
                         "tool_id": tool_id,
                         "user_id": request.user.id,
                         "workspace_id": workspace_id,
-                        "download_url": request.data.get("download_url"),
-                        "download_callback_url": request.data.get("download_callback_url"),
-                        "icon": request.data.get("icon"),
-                        "versions": request.data.get("versions"),
                     }
                 ).update_tool(request.data)
             )

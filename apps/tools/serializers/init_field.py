@@ -25,6 +25,25 @@ LEGACY_JSON_VALIDATOR = (
     "validator = (rule, value, callback) => { "
     "return componentFormRef.value?.validate_rules(rule, value, callback); }"
 )
+PASSWORD_MASK = "***************"
+
+
+def restore_password_defaults(fields, previous):
+    original = {item.get("field"): item for item in previous or []}
+    for item in fields:
+        old = original.get(item["field"], {})
+        if (item.get("input_type") == old.get("input_type") == "PasswordInput"
+                and item.get("default_value") == PASSWORD_MASK and "default_value" in old):
+            item["default_value"] = old["default_value"]
+        providers = item.get("attrs", {}).get("provider_list", [])
+        old_providers = old.get("attrs", {}).get("provider_list", [])
+        by_model = {p["model_id"]: p for p in old_providers if p.get("model_id")}
+        for index, provider in enumerate(providers):
+            previous_provider = by_model.get(provider.get("model_id"))
+            if not provider.get("model_id") and index < len(old_providers) and not old_providers[index].get("model_id"):
+                previous_provider = old_providers[index]
+            if "model_form_field" in provider and previous_provider:
+                restore_password_defaults(provider["model_form_field"], previous_provider.get("model_form_field"))
 
 
 def is_json_validator(input_type, value):
@@ -111,7 +130,7 @@ def validate_init_field_list(value):
     return serializer.validated_data
 
 
-def sanitize_init_field_list(value):
+def sanitize_init_field_list(value, *, exporting=False):
     """Filter historical configurations on reads without modifying stored tool parameters."""
     if not isinstance(value, list):
         return []
@@ -120,13 +139,18 @@ def sanitize_init_field_list(value):
         if not isinstance(field, dict):
             continue
         field = dict(field)
+        if field.get("input_type") == "PasswordInput" and field.get("default_value") not in (None, ""):
+            if exporting:
+                field.pop("default_value", None)
+            else:
+                field["default_value"] = PASSWORD_MASK
         field.pop("relation_trigger_field_dict", None)
         attrs = field.get("attrs", {})
         field["attrs"] = {key: val for key, val in attrs.items() if key in ATTR_KEYS} if isinstance(attrs, dict) else {}
         providers = field["attrs"].get("provider_list")
         if isinstance(providers, list):
             field["attrs"]["provider_list"] = [
-                {**provider, "model_form_field": sanitize_init_field_list(provider["model_form_field"])}
+                {**provider, "model_form_field": sanitize_init_field_list(provider["model_form_field"], exporting=exporting)}
                 if "model_form_field" in provider else provider
                 for provider in providers if isinstance(provider, dict)
             ]
@@ -158,5 +182,9 @@ def sanitize_init_field_list(value):
 
 
 class InitFieldListField(serializers.JSONField):
+    def __init__(self, **kwargs):
+        self.exporting = kwargs.pop("exporting", False)
+        super().__init__(**kwargs)
+
     def to_representation(self, value):
-        return sanitize_init_field_list(value)
+        return sanitize_init_field_list(value, exporting=self.exporting)

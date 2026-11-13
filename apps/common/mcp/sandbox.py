@@ -1,7 +1,6 @@
 """Build fixed stdio worker connections; user configuration never selects code."""
 
 import json
-import pwd
 import sys
 from datetime import timedelta
 from importlib.machinery import PathFinder
@@ -16,11 +15,45 @@ from maxkb.const import CONFIG
 BOOTSTRAP_KEY = "maxkbSandbox"
 
 
+def require_linux_sandbox():
+    if not sys.platform.startswith("linux"):
+        raise ValueError("Sandboxed tools require Linux")
+
+
+def tool_sandbox_unavailable():
+    """Read-only capability check, including before the first worker starts."""
+    if not sys.platform.startswith("linux"):
+        return "linux_required"
+    if not bool(int(CONFIG.get("SANDBOX", 1))):
+        return "sandbox_disabled"
+    if not (Path(CONFIG.get("SANDBOX_HOME", "/opt/maxkb-app/sandbox")) / "lib" / "sandbox.so").is_file():
+        return "sandbox_missing"
+    import pwd
+
+    try:
+        account = pwd.getpwnam("sandbox")
+    except KeyError:
+        return "sandbox_identity"
+    if account.pw_uid == 0 or account.pw_gid == 0:
+        return "sandbox_identity"
+    return ""
+
+
+def prepare_tool_execution():
+    require_linux_sandbox()
+    reason = tool_sandbox_unavailable()
+    if reason:
+        raise ValueError(f"Isolated tool runtime unavailable ({reason})")
+    from common.utils.tool_code import ToolExecutor
+    ToolExecutor.init_sandbox_dir()
+
+
 def sandbox_settings():
     if not bool(int(CONFIG.get("SANDBOX", 1))):
         raise ValueError("MCP sandbox is disabled")
-    if not sys.platform.startswith("linux"):
-        raise ValueError("MCP sandbox requires Linux; set SANDBOX=0 for local development")
+    prepare_tool_execution()
+    import pwd
+
     account = pwd.getpwnam("sandbox")
     sandbox_home = Path(CONFIG.get("SANDBOX_HOME", "/opt/maxkb-app/sandbox"))
     library = sandbox_home / "lib/sandbox.so"

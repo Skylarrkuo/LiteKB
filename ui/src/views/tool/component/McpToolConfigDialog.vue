@@ -1,65 +1,41 @@
 <template>
   <el-dialog
+    class="tool-editor-dialog tool-config-dialog"
     :title="$t('views.tool.mcp.mcpConfig')"
-    width="600"
+    width="620px"
+    align-center
     v-model="dialogVisible"
-    :close-on-click-modal="false"
-    :close-on-press-escape="false"
-    :destroy-on-close="true"
-    :before-close="close"
     append-to-body
-    class="mcp-config-dialog"
   >
-    <el-form label-width="auto" label-position="top">
-      <el-form-item @mouseenter.stop="showIcon = true" @mouseleave.stop="showIcon = false">
-        <el-input
-          type="textarea"
-          v-model="mcp_servers"
-          rows="8"
-          disabled
-          class="config-textarea"
-        ></el-input>
-        <el-button circle class="copy-icon" v-show="showIcon" @click.stop="copyClick(mcp_servers)">
-          <AppIcon iconName="app-copy" class="color-secondary" />
+    <el-input
+      class="tool-json"
+      type="textarea"
+      readonly
+      :model-value="config"
+      :aria-label="$t('views.tool.mcp.mcpConfig')"
+      :autosize="{ minRows: 7, maxRows: 18 }"
+      spellcheck="false"
+    />
+    <template #footer>
+      <div class="tool-editor-actions">
+        <el-button @click="dialogVisible = false">{{ $t('common.close') }}</el-button>
+        <el-button type="primary" @click="copyClick(config)" :disabled="!config">
+          <AppIcon iconName="app-copy" />{{ $t('common.copy') }}
         </el-button>
-      </el-form-item>
-    </el-form>
+      </div>
+    </template>
   </el-dialog>
 </template>
-
 <script setup lang="ts">
 import { ref } from 'vue'
 import { copyClick } from '@/utils/clipboard'
+import '../tool-form.scss'
 
-const mcp_servers = ref<string>('')
-const dialogVisible = ref<boolean>(false)
-const showIcon = ref<boolean>(false)
-
-const close = () => {
-  dialogVisible.value = false
-}
-const open = (item: any) => {
-  mcp_servers.value = item.code
+const config = ref('')
+const dialogVisible = ref(false)
+function open(item: { code: string }) {
+  config.value = item.code
   dialogVisible.value = true
 }
-
 defineExpose({ open })
 </script>
-
-<style scoped lang="scss">
-.mcp-config-dialog {
-  .copy-icon {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    box-shadow: 0px 4px 8px 0px rgba(var(--el-text-color-primary-rgb), 0.1);
-    z-index: 2;
-  }
-  .config-textarea {
-    :deep(.el-textarea__inner) {
-      color: var(--el-text-color-primary);
-      cursor: pointer;
-    }
-  }
-}
-</style>

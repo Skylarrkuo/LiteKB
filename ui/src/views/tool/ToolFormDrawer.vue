@@ -1,55 +1,47 @@
 <template>
-  <el-drawer v-model="visible" size="60%" :before-close="close">
-    <template #header>
-      <h4>{{ title }}</h4>
+  <el-drawer
+    class="tool-editor-drawer tool-editor-python"
+    :title="title"
+    v-model="visible"
+    size="min(780px, 100%)"
+    :before-close="close"
+    :show-close="!loading"
+    destroy-on-close
+  >
+    <template #header="{ titleId }">
+      <ToolEditorHeading
+        :title="title"
+        :title-id="titleId"
+        :icon="form.icon"
+        :fallback="toolIcon"
+        :editable="isEdit && canSave"
+        @edit-icon="avatarEditor?.open(form)"
+      />
     </template>
-    <div>
-      <h4 class="title-decoration-1 mb-16">
-        {{ $t('views.model.modelForm.title.baseInfo') }}
-      </h4>
+    <div class="tool-editor-content">
       <el-form
         ref="FormRef"
         :model="form"
-        :rules="rules"
         label-position="top"
         require-asterisk-position="right"
-        v-loading="loading"
+        :disabled="loading || !canSave"
         @submit.prevent
+        scroll-to-error
       >
-        <el-form-item :label="$t('common.name')" prop="name">
-          <div class="flex w-full">
-            <div
-              v-if="form.id"
-              class="edit-avatar mr-12"
-              @mouseenter="showEditIcon = true"
-              @mouseleave="showEditIcon = false"
-            >
-              <el-Avatar
-                v-if="isAppIcon(form.icon)"
-                :id="form.id"
-                shape="square"
-                :size="32"
-                style="background: none"
-              >
-                <img :src="String(form.icon)" alt="" />
-              </el-Avatar>
-              <el-avatar v-else class="avatar-green" shape="square" :size="32">
-                <img src="@/assets/tool/icon_tool.svg" style="width: 58%" alt="" />
-              </el-avatar>
-              <el-Avatar
-                v-if="showEditIcon"
-                :id="form.id"
-                shape="square"
-                class="edit-mask"
-                :size="32"
-                @click="openEditAvatar"
-              >
-                <AppIcon iconName="app-edit"></AppIcon>
-              </el-Avatar>
-            </div>
-            <el-avatar v-else class="avatar-green mr-12" shape="square" :size="32">
-              <img src="@/assets/tool/icon_tool.svg" style="width: 58%" alt="" />
-            </el-avatar>
+        <section class="tool-form-section">
+          <h3>{{ $t('common.info') }}</h3>
+          <el-form-item
+            :label="$t('common.name')"
+            prop="name"
+            :rules="[
+              {
+                required: true,
+                whitespace: true,
+                message: $t('views.tool.form.toolName.requiredMessage'),
+                trigger: 'blur',
+              },
+            ]"
+          >
             <el-input
               v-model="form.name"
               :placeholder="$t('views.tool.form.toolName.placeholder')"
@@ -57,422 +49,143 @@
               show-word-limit
               @blur="form.name = form.name?.trim()"
             />
-          </div>
-        </el-form-item>
-
-        <el-form-item :label="$t('common.desc')">
-          <el-input
-            v-model="form.desc"
-            type="textarea"
-            :placeholder="$t('common.descPlaceholder')"
-            maxlength="128"
-            show-word-limit
-            :autosize="{ minRows: 3 }"
-            @blur="form.desc = form.desc?.trim()"
-          />
-        </el-form-item>
+          </el-form-item>
+          <el-form-item :label="$t('common.desc')">
+            <el-input
+              v-model="form.desc"
+              type="textarea"
+              :placeholder="$t('common.descPlaceholder')"
+              maxlength="128"
+              show-word-limit
+              :autosize="{ minRows: 2, maxRows: 5 }"
+              @blur="form.desc = form.desc?.trim()"
+            />
+          </el-form-item>
+        </section>
       </el-form>
-      <div class="flex-between">
-        <h4 class="title-decoration-1 mb-16">
-          {{ $t('common.param.initParam') }}
-        </h4>
-        <el-button link type="primary" @click="openAddInitDialog()">
-          <AppIcon iconName="app-add-outlined" class="mr-4"></AppIcon>
-          {{ $t('common.add') }}
-        </el-button>
-      </div>
-      <el-table ref="initFieldTableRef" :data="form.init_field_list" class="mb-16">
-        <el-table-column prop="field" :label="$t('dynamicsForm.paramForm.field.label')">
-          <template #default="{ row }">
-            <span :title="row.field" class="ellipsis-1">{{ row.field }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('dynamicsForm.paramForm.input_type.label')">
-          <template #default="{ row }">
-            <el-tag size="small" type="info" class="info-tag">{{
-              input_type_list.find((item) => item.value === row.input_type)?.label
-            }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.required')">
-          <template #default="{ row }">
-            <div @click.stop>
-              <el-switch disabled size="small" v-model="row.required" />
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.operation')" align="left" width="90">
-          <template #default="{ row, $index }">
-            <span class="mr-4">
-              <el-tooltip effect="dark" :content="$t('common.modify')" placement="top">
-                <el-button type="primary" text @click.stop="openAddInitDialog(row, $index)">
-                  <AppIcon iconName="app-edit"></AppIcon>
-                </el-button>
-              </el-tooltip>
-            </span>
-            <el-tooltip effect="dark" :content="$t('common.delete')" placement="top">
-              <el-button type="primary" text @click="deleteInitField($index)">
-                <AppIcon iconName="app-delete"></AppIcon>
-              </el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="flex-between">
-        <h4 class="title-decoration-1 mb-16">
-          {{ $t('common.param.inputParam') }}
-          <el-text type="info" class="color-secondary lighter">
-            {{ $t('views.tool.form.param.paramInfo1') }}
-          </el-text>
-        </h4>
-        <el-button link type="primary" @click="openAddDialog()">
-          <AppIcon iconName="app-add-outlined" class="mr-4"></AppIcon>
-          {{ $t('common.add') }}
-        </el-button>
-      </div>
-
-      <el-table ref="inputFieldTableRef" :data="form.input_field_list" class="mb-16">
-        <el-table-column prop="name" :label="$t('views.tool.form.paramName.label')" />
-        <el-table-column :label="$t('views.tool.form.dataType.label')">
-          <template #default="{ row }">
-            <el-tag size="small" type="info" class="info-tag">{{ row.type }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.required')">
-          <template #default="{ row }">
-            <div @click.stop>
-              <el-switch size="small" v-model="row.is_required" />
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="source" :label="$t('views.tool.form.source.label')">
-          <template #default="{ row }">
-            {{
-              row.source === 'custom' ? $t('common.custom') : $t('views.tool.form.source.reference')
+      <ToolParameterList kind="init" v-model:rows="form.init_field_list" :editable="canSave" />
+      <ToolParameterList
+        kind="input"
+        v-model:rows="form.input_field_list"
+        :editable="canSave"
+        :hint="$t('views.tool.form.param.paramInfo1')"
+      />
+      <section class="tool-form-section">
+        <div class="tool-section-heading">
+          <div>
+            <h3>
+              {{ $t('views.tool.form.param.code') }}
+              <span class="tool-required" aria-hidden="true">*</span>
+            </h3>
+            <p>{{ $t('views.tool.form.param.paramInfo2') }}</p>
+          </div>
+          <el-button v-if="canSave" @click="openGenerator">
+            <AppIcon iconName="app-generate-star" />{{
+              $t('views.application.generateDialog.label')
             }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.operation')" align="left" width="90">
-          <template #default="{ row, $index }">
-            <span class="mr-4">
-              <el-tooltip effect="dark" :content="$t('common.modify')" placement="top">
-                <el-button type="primary" text @click.stop="openAddDialog(row, $index)">
-                  <AppIcon iconName="app-edit"></AppIcon>
-                </el-button>
-              </el-tooltip>
-            </span>
-            <el-tooltip effect="dark" :content="$t('common.delete')" placement="top">
-              <el-button type="primary" text @click="deleteField($index)">
-                <AppIcon iconName="app-delete"></AppIcon>
+          </el-button>
+        </div>
+        <div class="tool-code-field" ref="codeField">
+          <CodemirrorEditor
+            v-if="visible"
+            v-model="form.code"
+            :title="$t('views.tool.form.param.code')"
+            :autofocus="false"
+            @submitDialog="form.code = $event"
+          >
+            <template #header-extra>
+              <el-button link type="primary" v-if="canSave" @click="openGenerator">
+                {{ $t('views.application.generateDialog.label') }}
               </el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="flex-between mb-16">
-        <h4 class="title-decoration-1">
-          {{ $t('views.tool.form.param.code') }}
-          <span class="color-danger" style="margin-left: -10px">*</span>
-          <el-text type="info" class="color-secondary">
-            {{ $t('views.tool.form.param.paramInfo2') }}
-          </el-text>
-        </h4>
-        <el-button type="primary" @click="openGenerateCodeDialog" link>
-          <AppIcon iconName="app-generate-star" class="mr-4"></AppIcon>
-          {{ $t('views.application.generateDialog.label') }}
-        </el-button>
-      </div>
-
-      <div class="mb-8" v-if="showEditor">
-        <CodemirrorEditor
-          :title="$t('views.tool.form.param.code')"
-          v-model="form.code"
-          @submitDialog="submitCodemirrorEditor"
-          :replaceCode="replaceCode"
-        >
-          <template #header-extra>
-            <el-button type="primary" link @click="openGenerateCodeDialog">
-              <AppIcon iconName="app-generate-star" class="mr-4"></AppIcon>
-              {{ $t('views.application.generateDialog.label') }}
-            </el-button>
-          </template>
-        </CodemirrorEditor>
-      </div>
-      <h4 class="title-decoration-1 mb-16 mt-16">
-        {{ $t('common.param.outputParam') }}
-        <el-text type="info" class="color-secondary lighter">
-          {{ $t('views.tool.form.param.paramInfo1') }}
-        </el-text>
-      </h4>
-      <div class="flex-between border-r-6 p-8-12 mb-8 layout-bg lighter">
-        <span>{{ $t('common.result') }} {result}</span>
-      </div>
+            </template>
+          </CodemirrorEditor>
+        </div>
+        <p v-if="showCodeError && !form.code?.trim()" class="tool-form-error" role="alert">
+          {{ $t('views.tool.editor.codeRequired') }}
+        </p>
+      </section>
+      <section class="tool-form-section">
+        <h3>{{ $t('common.param.outputParam') }}</h3>
+        <div class="tool-output">
+          <span>{{ $t('common.result') }}</span
+          ><code>{result}</code>
+        </div>
+      </section>
     </div>
-
     <template #footer>
-      <div>
-        <el-button :loading="loading" @click="visible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button :loading="loading" @click="openDebug" v-if="permissionPrecise.debug()">{{
-          $t('common.debug')
-        }}</el-button>
+      <div class="tool-editor-actions">
         <el-button
-          type="primary"
-          @click="submit(FormRef)"
-          :loading="loading"
-          v-if="isEdit ? permissionPrecise.edit(form?.id as string) : permissionPrecise.create()"
+          v-if="permissions.debug()"
+          class="tool-secondary-action"
+          :disabled="loading"
+          @click="debugDrawer?.open(form)"
+          >{{ $t('common.debug') }}</el-button
         >
-          {{ isEdit ? $t('common.save') : $t('common.create') }}
+        <el-button :disabled="loading" @click="close">{{ $t('common.cancel') }}</el-button>
+        <el-button v-if="canSave" type="primary" :loading="loading" @click="save(checkCode)">
+          {{ $t(isEdit ? 'common.save' : 'common.create') }}
         </el-button>
       </div>
     </template>
-
-    <ToolDebugDrawer ref="ToolDebugDrawerRef" />
-    <FieldFormDialog ref="FieldFormDialogRef" @refresh="refreshFieldList" />
-    <UserFieldFormDialog ref="UserFieldFormDialogRef" @refresh="refreshInitFieldList" />
-    <EditAvatarDialog ref="EditAvatarDialogRef" @refresh="refreshTool" />
-    <GenerateCodeDialog ref="GenerateCodeDialogRef" :toolData="form" @replace="replaceCode" />
+    <EditAvatarDialog ref="avatarEditor" @refresh="form.icon = $event" />
+    <ToolDebugDrawer ref="debugDrawer" />
+    <GenerateCodeDialog ref="generator" :toolData="form" @replace="replaceCode" />
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, nextTick, computed } from 'vue'
-import FieldFormDialog from '@/views/tool/component/FieldFormDialog.vue'
-import ToolDebugDrawer from './ToolDebugDrawer.vue'
-import UserFieldFormDialog from '@/views/tool/component/UserFieldFormDialog.vue'
-import EditAvatarDialog from '@/views/tool/component/EditAvatarDialog.vue'
-import { input_type_list } from '@/components/dynamics-form/constructor/data'
-import type { toolData } from '@/api/type/tool'
-import type { FormInstance } from 'element-plus'
-import { MsgSuccess, MsgConfirm } from '@/utils/message'
-import { cloneDeep } from 'lodash'
+import { ref } from 'vue'
 import { t } from '@/locales'
-import { isAppIcon } from '@/utils/common'
-import { useRoute } from 'vue-router'
-import useStore from '@/stores'
-import permissionMap from '@/permission'
-import { loadSharedApi } from '@/utils/dynamics-api/shared-api'
-import GenerateCodeDialog from '@/views/tool/component/GenerateCodeDialog.vue'
-const route = useRoute()
+import toolIcon from '@/assets/tool/icon_tool.svg'
+import ToolEditorHeading from './component/ToolEditorHeading.vue'
+import EditAvatarDialog from './component/EditAvatarDialog.vue'
+import { useToolEditor } from './useToolEditor'
+import ToolParameterList from './component/ToolParameterList.vue'
+import ToolDebugDrawer from './ToolDebugDrawer.vue'
+import GenerateCodeDialog from './component/GenerateCodeDialog.vue'
+import { MsgSuccess } from '@/utils/message'
 
-const props = defineProps({
-  title: String,
-})
-const { folder, user } = useStore()
+defineProps<{ title?: string }>()
+const emit = defineEmits(['refresh', 'created'])
+const avatarEditor = ref<InstanceType<typeof EditAvatarDialog>>()
 
-const apiType = computed(() => {
-  if (route.path.includes('shared')) {
-    return 'systemShare'
-  } else if (route.path.includes('resource-management')) {
-    return 'systemManage'
-  } else {
-    return 'workspace'
-  }
-})
-
-const permissionPrecise = computed(() => {
-  return permissionMap['tool'][apiType.value]
-})
-
-const emit = defineEmits(['refresh'])
-const FieldFormDialogRef = ref()
-const ToolDebugDrawerRef = ref()
-const UserFieldFormDialogRef = ref()
-const EditAvatarDialogRef = ref()
-const initFieldTableRef = ref()
-const inputFieldTableRef = ref()
-const GenerateCodeDialogRef = ref()
-
-const FormRef = ref()
-
-const isEdit = ref(false)
-const loading = ref(false)
-const visible = ref(false)
-const showEditor = ref(false)
-const currentIndex = ref<any>(null)
-const showEditIcon = ref(false)
-
-const form = ref<toolData>({
-  name: '',
-  desc: '',
-  code: '',
-  icon: '',
-  input_field_list: [],
-  init_field_list: [],
-})
-
-watch(visible, (bool) => {
-  if (!bool) {
-    isEdit.value = false
-    showEditor.value = false
-    currentIndex.value = null
-    form.value = {
-      name: '',
-      desc: '',
-      code: '',
-      icon: '',
-      input_field_list: [],
-      init_field_list: [],
-    }
-    FormRef.value?.clearValidate()
-  }
-})
-
-const rules = reactive({
-  name: [
-    {
-      required: true,
-      message: t('views.tool.form.toolName.requiredMessage'),
-      trigger: 'blur',
-    },
-  ],
-})
-
-function submitCodemirrorEditor(val: string) {
-  form.value.code = val
+const {
+  form,
+  visible,
+  loading,
+  isEdit,
+  canSave,
+  FormRef,
+  permissions,
+  open: openEditor,
+  close,
+  save,
+} = useToolEditor(
+  () => ({ name: '', desc: '', icon: '', code: '', init_field_list: [], input_field_list: [] }),
+  (data, created) => {
+    emit('refresh', data)
+    if (created) emit('created', data)
+  },
+)
+const codeField = ref<HTMLElement>()
+const showCodeError = ref(false)
+function checkCode() {
+  showCodeError.value = !form.value.code?.trim()
+  if (showCodeError.value) codeField.value?.querySelector<HTMLElement>('.cm-content')?.focus()
+  return !showCodeError.value
 }
-
-function close() {
-  if (!areAllValuesNonEmpty(form.value)) {
-    visible.value = false
-  } else {
-    MsgConfirm(t('common.tip'), t('views.tool.tip.saveMessage'), {
-      confirmButtonText: t('common.confirm'),
-    })
-      .then(() => {
-        visible.value = false
-      })
-      .catch(() => {})
-  }
+function open(data?: Parameters<typeof openEditor>[0]) {
+  showCodeError.value = false
+  openEditor(data)
 }
-
-function areAllValuesNonEmpty(obj: any) {
-  return Object.values(obj).some((value) => {
-    return Array.isArray(value)
-      ? value.length !== 0
-      : value !== null && value !== undefined && value !== ''
-  })
+const debugDrawer = ref<InstanceType<typeof ToolDebugDrawer>>()
+const generator = ref<InstanceType<typeof GenerateCodeDialog>>()
+function openGenerator() {
+  generator.value?.open(form.value.init_field_list ?? [], form.value.input_field_list ?? [])
 }
-
-function openDebug() {
-  ToolDebugDrawerRef.value.open(form.value)
-}
-
-function deleteField(index: any) {
-  form.value.input_field_list?.splice(index, 1)
-}
-
-function openAddDialog(data?: any, index?: any) {
-  if (typeof index !== 'undefined') {
-    currentIndex.value = index
-  }
-
-  FieldFormDialogRef.value.open(data)
-}
-
-function refreshFieldList(data: any) {
-  if (currentIndex.value !== null) {
-    form.value.input_field_list?.splice(currentIndex.value, 1, data)
-  } else {
-    form.value.input_field_list?.push(data)
-  }
-  currentIndex.value = null
-}
-
-function openAddInitDialog(data?: any, index?: any) {
-  if (typeof index !== 'undefined') {
-    currentIndex.value = index
-  }
-
-  UserFieldFormDialogRef.value.open(data)
-}
-
-function refreshInitFieldList(data: any) {
-  if (currentIndex.value !== null) {
-    form.value.init_field_list?.splice(currentIndex.value, 1, data)
-  } else {
-    form.value.init_field_list?.push(data)
-  }
-  currentIndex.value = null
-  UserFieldFormDialogRef.value.close()
-}
-
-function refreshTool(data: any) {
-  form.value.icon = data
-}
-
-function deleteInitField(index: any) {
-  form.value.init_field_list?.splice(index, 1)
-}
-
-function openEditAvatar() {
-  EditAvatarDialogRef.value.open(form.value)
-}
-
-function openGenerateCodeDialog() {
-  GenerateCodeDialogRef.value?.open(form.value.init_field_list, form.value.input_field_list)
-}
-
 function replaceCode(code: string) {
-  const match = code.replace('```python', '').replace('```', '')
-  form.value.code = match
+  form.value.code = code.replace(/^```python\s*\n?/, '').replace(/\n?```\s*$/, '')
   MsgSuccess(t('views.document.tip.replaceSuccess'))
 }
-
-const submit = async (formEl: FormInstance | undefined) => {
-  if (!formEl) return
-  await formEl.validate((valid: any) => {
-    if (valid) {
-      loading.value = true
-      if (isEdit.value) {
-        loadSharedApi({ type: 'tool', systemType: apiType.value })
-          .putTool(form.value?.id as string, form.value)
-          .then((res: any) => {
-            MsgSuccess(t('common.editSuccess'))
-            emit('refresh', res.data)
-            return user.profile().then(() => {
-              visible.value = false
-            })
-          })
-
-          .finally(() => {
-            loading.value = false
-          })
-      } else {
-        const obj = {
-          folder_id: folder.currentFolder?.id || user.getWorkspaceId() || 'default',
-          ...form.value,
-        }
-        loadSharedApi({ type: 'tool', systemType: apiType.value })
-          .postTool(obj)
-          .then((res: any) => {
-            MsgSuccess(t('common.createSuccess'))
-            emit('refresh')
-            return user.profile().then(() => {
-              visible.value = false
-            })
-          })
-          .finally(() => {
-            loading.value = false
-          })
-      }
-    }
-  })
-}
-
-const open = (data: any) => {
-  if (data) {
-    isEdit.value = data?.id ? true : false
-    form.value = cloneDeep(data)
-  }
-  visible.value = true
-  setTimeout(() => {
-    showEditor.value = true
-  }, 100)
-}
-
-defineExpose({
-  open,
-})
+defineExpose({ open })
 </script>
-<style lang="scss" scoped></style>
